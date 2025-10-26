@@ -11,6 +11,7 @@ interface HostAuthModalProps {
   onClose: () => void;
   setIsAuthenticated: React.Dispatch<React.SetStateAction<boolean>>;
   setUserName: React.Dispatch<React.SetStateAction<string | null>>;
+  
 }
 
 const HostAuthModal: React.FC<HostAuthModalProps> = ({ open, onClose, setIsAuthenticated, setUserName }) => {

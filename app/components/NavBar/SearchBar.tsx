@@ -58,7 +58,7 @@ export const SearchBar = ({ onSearch }: { onSearch: OnSearchFn }) => {
             placeholder="¿A dónde vas?"
             value={destination}
             onChange={(e) => setDestination(e.target.value)}
-            className="bg-transparent border-none text-sm placeholder-gray-500 w-full text-center focus:outline-none"
+            className="bg-transparent border-none text-[11px] md:text-xs placeholder-gray-500 w-full text-center focus:outline-none"
           />
         </div>
 
@@ -67,7 +67,7 @@ export const SearchBar = ({ onSearch }: { onSearch: OnSearchFn }) => {
           <button
             type="button"
             onClick={() => setOpenCalendar(true)}
-            className="bg-transparent border-none text-sm placeholder-gray-500 w-full text-center focus:outline-none py-1"
+            className="bg-transparent border-none text-[11px] md:text-xs placeholder-gray-500 w-full text-center focus:outline-none py-1"
           >
             {checkIn || 'Fecha de entrada'}
           </button>
@@ -78,7 +78,7 @@ export const SearchBar = ({ onSearch }: { onSearch: OnSearchFn }) => {
           <button
             type="button"
             onClick={() => setOpenCalendar(true)}
-            className="bg-transparent border-none text-sm placeholder-gray-500 w-full text-center focus:outline-none py-1"
+            className="bg-transparent border-none text-[11px] md:text-xs placeholder-gray-500 w-full text-center focus:outline-none py-1"
           >
             {checkOut || 'Fecha de salida'}
           </button>
@@ -92,7 +92,7 @@ export const SearchBar = ({ onSearch }: { onSearch: OnSearchFn }) => {
             placeholder="Capacidad"
             value={guests}
             onChange={(e) => setGuests(Number(e.target.value))}
-            className="bg-transparent border-none text-sm placeholder-gray-500 w-full text-center focus:outline-none"
+            className="bg-transparent border-none text-[11px] md:text-xs placeholder-gray-500 w-full text-center focus:outline-none"
           />
         </div>
 
@@ -103,7 +103,7 @@ export const SearchBar = ({ onSearch }: { onSearch: OnSearchFn }) => {
             placeholder="wifi, piscina..."
             value={amenities}
             onChange={(e) => setAmenities(e.target.value)}
-            className="bg-transparent border-none text-sm placeholder-gray-500 w-full text-center focus:outline-none"
+            className="bg-transparent border-none text-[11px] md:text-xs placeholder-gray-500 w-full text-center focus:outline-none"
           />
         </div>
 
@@ -120,7 +120,7 @@ export const SearchBar = ({ onSearch }: { onSearch: OnSearchFn }) => {
               setPricePerNight(onlyNums);
             }}
             onWheel={(e) => (e.currentTarget as HTMLInputElement).blur()}
-            className="bg-transparent border-none text-sm placeholder-gray-500 w-full text-left focus:outline-none"
+            className="bg-transparent border-none text-[11px] md:text-xs placeholder-gray-500 w-full text-left focus:outline-none"
           />
         </div>
 
@@ -146,8 +146,10 @@ export const SearchBar = ({ onSearch }: { onSearch: OnSearchFn }) => {
             selected={range}                             
             onSelect={(r) => {                          
               setRange(r);
-              if (r?.from && r?.to) setOpenCalendar(false);
-            }}
+              if (r?.from && r?.to && r.from.getTime() !== r.to.getTime()) {
+                setOpenCalendar(false);
+              }           
+             }}
             numberOfMonths={2}
             locale={es}
             disabled={{ before: new Date() }}
@@ -155,13 +157,13 @@ export const SearchBar = ({ onSearch }: { onSearch: OnSearchFn }) => {
           />
           <div className="flex justify-end gap-2 pt-2">
             <button
-              className="text-sm px-3 py-1 rounded hover:bg-gray-100"
+              className="text-[11px] md:text-xs px-3 py-1 rounded hover:bg-gray-100"
               onClick={() => setRange(undefined)}       
             >
               Limpiar
             </button>
             <button
-              className="text-sm px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
+              className="text-[11px] md:text-xs px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
               onClick={() => setOpenCalendar(false)}
             >
               Listo

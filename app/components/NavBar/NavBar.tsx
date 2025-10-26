@@ -7,13 +7,15 @@ import HostAuthModal from '@/app/components/auth/HostAuthModal';
 import Button from './../Button';
 import { SearchBar } from './SearchBar';
 import type { OnSearchFn } from '../types/search';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
   const [authOpen, setAuthOpen] = useState(false);
   const [authTab, setAuthTab] = useState<'signup' | 'login'>('signup');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
+  const router = useRouter();
+  const [modalKey, setModalKey] = useState(0);
 
   const pathname = usePathname();
   const isListing = pathname?.startsWith('/listing/');
@@ -41,10 +43,33 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('userName');
+    const keys = [
+      'authToken',
+      'userName',
+      'userData',
+      'twoFactorRequired',
+      'qrCodeUrl',
+      'twoFactorEnabled',
+      'twoFactorSecret',
+      'twoFactorTempToken',
+      'twoFactorCode',
+    ];
+    keys.forEach((k) => localStorage.removeItem(k));
+
+    try {
+      sessionStorage.clear();
+    } catch {}
+
     setIsAuthenticated(false);
     setUserName(null);
+
+    setAuthOpen(false);
+    setAuthTab('signup');
+
+    setModalKey((k) => k + 1);
+
+    router.push('/');
+    router.refresh();
   };
 
   return (
@@ -88,7 +113,6 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
           </div>
         
 
-        {/* --- AUTH --- */}
         <div className="flex items-center space-x-4">
           {!isAuthenticated ? (
             <>
@@ -126,14 +150,12 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
         </div>
       </nav>
 
-      {/* --- SEARCHBAR (solo fuera de listings) --- */}
       {!isListing && (
         <div className="bg-blue-600 w-full flex justify-center -mt-10 md:-mt-12 pb-6">
           <SearchBar onSearch={onSearch} />
         </div>
       )}
 
-      {/* --- MODAL --- */}
       <HostAuthModal
         open={authOpen}
         onClose={() => setAuthOpen(false)}
