@@ -1,22 +1,23 @@
 'use client';
+
 import React, { useState, useEffect } from 'react';
 import ListingCard from './components/Listing/ListingCard';
-import { useRouter } from 'next/navigation';  
+import { useRouter } from 'next/navigation';
 import { Navbar } from './components/NavBar/NavBar';
+import type { OnSearchFn } from './components/types/search';
 
 const HomePage = () => {
   const [lodgings, setLodgings] = useState<any[]>([]);
   const [searchResults, setSearchResults] = useState<any[]>([]);
-  const router = useRouter();  
+  const router = useRouter();
+
   useEffect(() => {
-    console.log('Fetching lodgings from API...');
     const fetchLodgings = async () => {
       try {
         const response = await fetch('http://localhost:3000/lodgings');
         const data = await response.json();
         setLodgings(data);
-        console.log('Data fetched from API:', data);
-        setSearchResults(data);
+        setSearchResults(data); 
       } catch (error) {
         console.error('Error fetching lodgings:', error);
       }
@@ -24,24 +25,61 @@ const HomePage = () => {
     fetchLodgings();
   }, []);
 
-  const handleSearch = async (destination: string) => {
-    if (destination) {
-      const foundLodging = lodgings.filter((lodging) =>
-        lodging.title.toLowerCase().includes(destination.toLowerCase())
-      );
-      setSearchResults(foundLodging);
-    } else {
-      setSearchResults(lodgings);
-    }
-  };
+  const handleSearch: OnSearchFn = (
+    destination,
+    checkIn,
+    checkOut,
+    guests,
+    address,
+    amenities,
+    pricePerNight
+  ) => {
+    let results = [...lodgings];
 
-  const handleDetailsClick = (id: string) => {
-    router.push(`/listing/${id}`);
+    if (destination?.trim()) {
+      const q = destination.toLowerCase();
+      results = results.filter((l) =>
+        l?.location?.city?.toLowerCase().includes(q) ||
+        l?.location?.country?.toLowerCase().includes(q) ||
+        l?.title?.toLowerCase().includes(q) ||
+        l?.location?.address?.toLowerCase().includes(q)
+      );
+    }
+
+
+    if (guests && Number.isFinite(guests)) {
+      results = results.filter((l) => {
+        const capacity = l?.maxGuests ?? l?.capacity ?? l?.guests ?? 0;
+        return Number(capacity) >= Number(guests);
+      });
+    }
+
+    if (amenities?.trim()) {
+      const requested = amenities
+        .split(',')
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean);
+
+      if (requested.length > 0) {
+        results = results.filter((l) => {
+          const a: string[] = (l?.amenities ?? []).map((x: string) => (x ?? '').toLowerCase());
+          return requested.every((req) => a.some((am) => am.includes(req)));
+        });
+      }
+    }
+
+    if (Number.isFinite(pricePerNight) && pricePerNight > 0) {
+      results = results.filter((l) => Number(l?.pricePerNight) <= pricePerNight);
+    }
+
+
+    setSearchResults(results);
   };
 
   return (
     <div>
       <Navbar onSearch={handleSearch} />
+
       <div className="max-w-6xl mx-auto p-6">
         <h2 className="text-2xl font-semibold mb-6">Alojamientos populares</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
@@ -50,15 +88,15 @@ const HomePage = () => {
               <ListingCard
                 key={lodging.id}
                 title={lodging.title}
-                location={lodging.location.city}
+                location={lodging.location?.city}
                 pricePerNight={lodging.pricePerNight}
                 images={lodging.images}
-                id={lodging.id}  
-                onAction={() => handleDetailsClick(lodging.id)} 
+                id={lodging.id}
+                onAction={() => router.push(`/listing/${lodging.id}`)}
               />
             ))
           ) : (
-            <p>No se encontraron resultados para la búsqueda.</p>
+            <p className="col-span-full text-center">No se encontraron resultados para la búsqueda.</p>
           )}
         </div>
       </div>
