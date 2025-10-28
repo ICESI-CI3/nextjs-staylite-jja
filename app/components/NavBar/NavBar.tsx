@@ -7,22 +7,61 @@ import HostAuthModal from '@/app/components/auth/HostAuthModal';
 import Button from './../Button';
 import { SearchBar } from './SearchBar';
 import type { OnSearchFn } from '../types/search';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
   const [authOpen, setAuthOpen] = useState(false);
   const [authTab, setAuthTab] = useState<'signup' | 'login'>('signup');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
-  const router = useRouter();
+  const [roles, setRoles] = useState<string[]>([]);
   const [modalKey, setModalKey] = useState(0);
 
+  const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const isListing = pathname?.startsWith('/listing/');
 
+  const readRoles = (): string[] => {
+  const norm = (arr: any): string[] =>
+    (Array.isArray(arr) ? arr : [arr])
+      .filter((v) => v !== null && v !== undefined)
+      .map(String)
+      .flatMap((s) => s.includes(',') ? s.split(',') : [s]) // soporta "host,admin"
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+
+  const tryParse = (raw: string | null): any => {
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch { return raw; }
+  };
+
+  let v = tryParse(localStorage.getItem('roles'));
+
+  // si tras el primer parse sigue siendo string con pinta de JSON, intenta parsear de nuevo
+  if (typeof v === 'string') {
+    const looksJsonArray = v.startsWith('[') && v.endsWith(']');
+    if (looksJsonArray) {
+      try { v = JSON.parse(v); } catch { /* queda como string */ }
+    }
+  }
+
+  // fallback a userData.roles si roles no existe
+  if (!v || (Array.isArray(v) && v.length === 0)) {
+    const ud = tryParse(localStorage.getItem('userData'));
+    if (ud?.roles) v = ud.roles;
+  }
+
+  // normaliza
+  const normalized = norm(v ?? []);
+  return Array.from(new Set(normalized));
+};
+
+  // 🔹 Cargar sesión al montar
   useEffect(() => {
     const token = localStorage.getItem('authToken');
     const name = localStorage.getItem('userName');
+    setRoles(readRoles());
     if (token && name) {
       setIsAuthenticated(true);
       setUserName(name);
@@ -32,7 +71,77 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
     }
   }, []);
 
+  // 🔹 Escuchar cambios desde otros tabs o eventos del modal
+  useEffect(() => {
+    const updateRoles = () => setRoles(readRoles());
+    window.addEventListener('auth:updated', updateRoles);
+    window.addEventListener('storage', updateRoles);
+    return () => {
+      window.removeEventListener('auth:updated', updateRoles);
+      window.removeEventListener('storage', updateRoles);
+    };
+  }, []);
+
+  // 🔹 Refrescar roles cuando cambia autenticación
+  useEffect(() => {
+    setRoles(readRoles());
+  }, [isAuthenticated]);
+
+
+  useEffect(() => {
+  const rereadSession = () => {
+    setRoles(readRoles());
+    const token = localStorage.getItem('authToken');
+    const name = localStorage.getItem('userName');
+    setIsAuthenticated(Boolean(token && name));
+    setUserName(name);
+  };
+
+  window.addEventListener('auth:updated', rereadSession);
+  window.addEventListener('storage', rereadSession);
+
+  return () => {
+    window.removeEventListener('auth:updated', rereadSession);
+    window.removeEventListener('storage', rereadSession);
+  };
+}, []);
+
+useEffect(() => {
+  console.log('Navbar -> isAuthenticated:', isAuthenticated, 'roles:', roles);
+}, [isAuthenticated, roles]);
+
+
+  useEffect(() => {
+    const shouldOpen = searchParams.get('authOpen') === '1';
+    const tab = (searchParams.get('tab') as 'signup' | 'login') || 'signup';
+    if (shouldOpen) {
+      setAuthTab(tab);
+      setAuthOpen(true);
+    }
+  }, [searchParams]);
+
+  // ⚙️ Acciones principales
+  const handleGoProfile = () => {
+    if (!isAuthenticated) {
+      setAuthTab('login');
+      setAuthOpen(true);
+      return;
+    }
+    router.push('/profile');
+  };
+
+  const handleCreateListing = () => {
+    if (!isAuthenticated) {
+      localStorage.setItem('signupRole', 'host');
+      setAuthTab('signup');
+      setAuthOpen(true);
+      return;
+    }
+    router.push('/listing/new');
+  };
+
   const goToBecomeHost = () => {
+    localStorage.setItem('signupRole', 'host');
     setAuthTab('signup');
     setAuthOpen(true);
   };
@@ -47,30 +156,35 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
       'authToken',
       'userName',
       'userData',
+      'roles',
       'twoFactorRequired',
       'qrCodeUrl',
       'twoFactorEnabled',
       'twoFactorSecret',
       'twoFactorTempToken',
       'twoFactorCode',
+      'postLoginRedirect',
+      'signupRole',
     ];
     keys.forEach((k) => localStorage.removeItem(k));
-
     try {
       sessionStorage.clear();
     } catch {}
 
     setIsAuthenticated(false);
     setUserName(null);
-
+    setRoles([]);
     setAuthOpen(false);
     setAuthTab('signup');
-
     setModalKey((k) => k + 1);
-
     router.push('/');
     router.refresh();
   };
+
+  // 🎭 Roles disponibles
+  const roleSet = new Set(roles.map((r) => r.toLowerCase()));
+  const isHost = roleSet.has('host');
+  const isAdmin = roleSet.has('admin');
 
   return (
     <>
@@ -90,30 +204,41 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
             />
           </Link>
         </div>
-     
-        <div className="flex justify-center items-center space-x-8 ml-10 md:ml-30">
-            <div className="text-white text-center">
-              <div className="flex justify-center items-center space-x-2">
-                <img src="/alojamiento.png" alt="Alojamiento" className="w-6 h-6" />
-                <span>Alojamientos</span>
-              </div>
-            </div>
-            <div className="text-white text-center">
-              <div className="flex justify-center items-center space-x-2">
-                <img src="/experiencias.png" alt="Experiencias" className="w-6 h-6" />
-                <span>Experiencias</span>
-              </div>
-            </div>
-            <div className="text-white text-center">
-              <div className="flex justify-center items-center space-x-2">
-                <img src="/servicio.png" alt="Servicio" className="w-6 h-6" />
-                <span>Buen servicio</span>
-              </div>
-            </div>
-          </div>
-        
 
-        <div className="flex items-center space-x-4">
+        <div className="flex justify-center items-center space-x-8 ml-10 md:ml-30">
+          {[
+            { src: '/alojamiento.png', label: 'Alojamientos' },
+            { src: '/experiencias.png', label: 'Experiencias' },
+            { src: '/servicio.png', label: 'Buen servicio' },
+          ].map((item) => (
+            <div key={item.label} className="text-white text-center">
+              <div className="flex justify-center items-center space-x-2">
+                <img src={item.src} alt={item.label} className="w-6 h-6" />
+                <span>{item.label}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex items-center space-x-3">
+          <button
+            type="button"
+            onClick={handleGoProfile}
+            className="py-2 px-4 text-sm bg-white text-blue-700 rounded-full hover:bg-gray-200 transition"
+          >
+            Ir al perfil
+          </button>
+
+          {isAuthenticated && (isHost || isAdmin) && (
+            <button
+              type="button"
+              onClick={handleCreateListing}
+              className="py-2 px-4 text-sm bg-emerald-600 text-white rounded-full hover:bg-emerald-700 transition"
+            >
+              Crear listing
+            </button>
+          )}
+
           {!isAuthenticated ? (
             <>
               <button
@@ -133,7 +258,7 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
               </button>
             </>
           ) : (
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3">
               <div className="flex items-center space-x-2">
                 <i className="fas fa-smile text-black text-xl"></i>
                 <span className="text-white font-semibold text-lg py-1 px-3 rounded-md shadow-md">
@@ -157,8 +282,18 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
       )}
 
       <HostAuthModal
+        key={modalKey}
         open={authOpen}
-        onClose={() => setAuthOpen(false)}
+        onClose={() => {
+          setAuthOpen(false);
+          if (typeof window !== 'undefined') {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('authOpen');
+            url.searchParams.delete('tab');
+            router.replace(url.pathname + url.search);
+          }
+          setRoles(readRoles());
+        }}
         setIsAuthenticated={setIsAuthenticated}
         setUserName={setUserName}
       />

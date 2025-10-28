@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Modal from './Modal';
 import { useAuth } from '@/app/hooks/useAuth';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 type Tab = 'signup' | 'login' | '2fa';
 
@@ -11,26 +12,103 @@ interface HostAuthModalProps {
   onClose: () => void;
   setIsAuthenticated: React.Dispatch<React.SetStateAction<boolean>>;
   setUserName: React.Dispatch<React.SetStateAction<string | null>>;
-  
 }
 
-const HostAuthModal: React.FC<HostAuthModalProps> = ({ open, onClose, setIsAuthenticated, setUserName }) => {
-  const { registerUser, loginUser, verifyTwoFactor, loading, error, token } = useAuth();
+const HostAuthModal: React.FC<HostAuthModalProps> = ({
+  open,
+  onClose,
+  setIsAuthenticated,
+  setUserName,
+}) => {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const { registerUser, loginUser, verifyTwoFactor, loading } = useAuth();
+
   const [tab, setTab] = useState<Tab>('signup');
+
   const [name, setName] = useState('');
   const [emailS, setEmailS] = useState('');
   const [passS, setPassS] = useState('');
   const [emailL, setEmailL] = useState('');
   const [passL, setPassL] = useState('');
+
   const [err, setErr] = useState<string>('');
   const [twoFactorCode, setTwoFactorCode] = useState('');
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
   const [is2FARequired, setIs2FARequired] = useState<boolean>(false);
 
+  useEffect(() => {
+    if (!open) {
+      setTab('signup');
+      setName('');
+      setEmailS('');
+      setPassS('');
+      setEmailL('');
+      setPassL('');
+      setErr('');
+      setTwoFactorCode('');
+      setQrCodeUrl(null);
+      setIs2FARequired(false);
+
+      const twoFaKeys = [
+        'twoFactorRequired',
+        'qrCodeUrl',
+        'twoFactorEnabled',
+        'twoFactorSecret',
+        'twoFactorTempToken',
+        'twoFactorCode',
+      ];
+      twoFaKeys.forEach((k) => localStorage.removeItem(k));
+    }
+  }, [open]);
+
+
+  function normalizeRolesFromResult(result: any): string[] {
+    let raw =
+      result?.roles ??
+      result?.user?.roles ??
+      result?.payload?.roles ??
+      [];
+
+    if (typeof raw === 'string') {
+      const looksJsonArray = raw.trim().startsWith('[') && raw.trim().endsWith(']');
+      if (looksJsonArray) {
+        try { raw = JSON.parse(raw); } catch { /* deja raw como string */ }
+      } else {
+        raw = raw.split(',').map((s) => s.trim());
+      }
+    }
+
+    const arr = Array.isArray(raw) ? raw : [raw];
+    return Array.from(
+      new Set(arr.map(String).map((s) => s.trim().toLowerCase()).filter(Boolean))
+    );
+  }
+
+
+  useEffect(() => {
+    if (open) {
+      const qTab = (searchParams.get('tab') as Tab) || 'signup';
+      setTab(qTab);
+    }
+  }, [open, searchParams]);
+
+  const redirectAfterAuth = () => {
+    const redirect = localStorage.getItem('postLoginRedirect');
+    if (redirect) {
+      localStorage.removeItem('postLoginRedirect');
+      router.push(redirect);
+    } else {
+      router.push('/');
+    }
+  };
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr('');
-    if (name.length < 3) {
+
+    if (name.trim().length < 3) {
       setErr('El nombre debe tener al menos 3 caracteres');
       return;
     }
@@ -40,11 +118,17 @@ const HostAuthModal: React.FC<HostAuthModalProps> = ({ open, onClose, setIsAuthe
     }
 
     try {
-      const res = await registerUser(emailS, passS, { name, roles: ['guest', 'host'] });
+      const selectedRole = localStorage.getItem('signupRole') || 'guest';
+      const res = await registerUser(emailS, passS, { name, roles: [selectedRole] });
+
       if (res) {
         setTab('login');
+        setEmailL(emailS);
+        setPassL(passS);
+      } else {
+        setErr('No se pudo registrar el usuario.');
       }
-    } catch (e) {
+    } catch {
       setErr('Error al registrar el usuario');
     }
   };
@@ -56,55 +140,104 @@ const HostAuthModal: React.FC<HostAuthModalProps> = ({ open, onClose, setIsAuthe
       const result = await loginUser(emailL, passL);
 
       if (result?.twoFactorRequired) {
-        setQrCodeUrl(result.qrCodeUrl);
-        console.log('QR Code URL:', result.qrCodeUrl);
+        localStorage.setItem('twoFactorRequired', 'true');
+        if (result.qrCodeUrl) {
+          localStorage.setItem('qrCodeUrl', result.qrCodeUrl);
+          setQrCodeUrl(result.qrCodeUrl);
+        } else {
+          localStorage.removeItem('qrCodeUrl');
+          setQrCodeUrl(null);
+        }
         setIs2FARequired(true);
         setTab('2fa');
-      } else {
+        return;
+      }
+
+      if (result?.token && result?.name) {
         localStorage.setItem('authToken', result.token);
         localStorage.setItem('userName', result.name);
-        console.log('Logged in user name:', result.name);
+
+        const roles = normalizeRolesFromResult(result);
+        localStorage.setItem('roles', JSON.stringify(roles));
+        console.log('Logged in user roles (normalized):', roles);
+
+        localStorage.removeItem('twoFactorRequired');
+        localStorage.removeItem('qrCodeUrl');
+        localStorage.removeItem('signupRole');
+
         setIsAuthenticated(true);
         setUserName(result.name);
         onClose();
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('auth:updated'));
+        }
+
+        redirectAfterAuth();
+        return;
       }
-    } catch (e) {
+
+
+      setErr('Respuesta inesperada del servidor');
+    } catch {
       setErr('Credenciales inválidas');
     }
   };
-
 
   const handle2FASubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr('');
 
-    console.log('twoFactorCode submitted:', twoFactorCode);
+    if (!twoFactorCode.trim()) {
+      setErr('Por favor, ingresa el código 2FA');
+      return;
+    }
 
     try {
-      if (!twoFactorCode) {
-        setErr('Por favor, ingresa el código 2FA');
-        return;
-      }
-
-
       const result = await verifyTwoFactor(emailL, passL, twoFactorCode);
 
-      localStorage.setItem('authToken', result.token);
-      localStorage.setItem('userName', result.name);
-      setIsAuthenticated(true);
-      setUserName(result.name);
-      onClose();
-    } catch (e) {
+      if (result?.token && result?.name) {
+        localStorage.setItem('authToken', result.token);
+        localStorage.setItem('userName', result.name);
+
+        const roles = normalizeRolesFromResult(result);
+        localStorage.setItem('roles', JSON.stringify(roles));
+        console.log('2FA verified roles (normalized):', roles);
+
+        const twoFaKeys = [
+          'twoFactorRequired',
+          'qrCodeUrl',
+          'twoFactorEnabled',
+          'twoFactorSecret',
+          'twoFactorTempToken',
+          'twoFactorCode',
+        ];
+        twoFaKeys.forEach((k) => localStorage.removeItem(k));
+        localStorage.removeItem('signupRole');
+
+        setIsAuthenticated(true);
+        setUserName(result.name);
+        onClose();
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('auth:updated'));
+        }
+
+        redirectAfterAuth();
+      } else {
+        setErr('Respuesta inesperada al verificar 2FA');
+      }
+
+    } catch {
       setErr('Código 2FA inválido');
     }
   };
-
 
   return (
     <Modal open={open} onClose={onClose} widthClass="max-w-lg">
       <div className="flex items-center justify-between px-6 pt-5">
         <h2 className="text-xl font-semibold">
-          {tab === 'signup' ? 'Crea tu cuenta de anfitrión' : tab === 'login' ? 'Inicia sesión' : 'Verificación 2FA'}
+          {tab === 'signup' ? 'Crea tu cuenta' : tab === 'login' ? 'Inicia sesión' : 'Verificación 2FA'}
         </h2>
         <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100">✕</button>
       </div>
@@ -148,11 +281,7 @@ const HostAuthModal: React.FC<HostAuthModalProps> = ({ open, onClose, setIsAuthe
 
             <p className="text-sm text-gray-600 text-center">
               ¿Ya tienes cuenta?{' '}
-              <button
-                type="button"
-                onClick={() => setTab('login')}
-                className="text-blue-600 hover:underline"
-              >
+              <button type="button" onClick={() => setTab('login')} className="text-blue-600 hover:underline">
                 Inicia sesión
               </button>
             </p>
@@ -188,11 +317,7 @@ const HostAuthModal: React.FC<HostAuthModalProps> = ({ open, onClose, setIsAuthe
 
             <p className="text-sm text-gray-600 text-center">
               ¿No tienes cuenta?{' '}
-              <button
-                type="button"
-                onClick={() => setTab('signup')}
-                className="text-blue-600 hover:underline"
-              >
+              <button type="button" onClick={() => setTab('signup')} className="text-blue-600 hover:underline">
                 Crea una
               </button>
             </p>

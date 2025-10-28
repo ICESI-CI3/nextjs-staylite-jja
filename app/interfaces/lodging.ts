@@ -3,7 +3,7 @@ export interface Coordinates {
   lng: number;
 }
 
-export interface Location {
+export interface LodgingLocation {
   city: string;
   address: string;
   coordinates: Coordinates;
@@ -11,14 +11,27 @@ export interface Location {
   placeId?: string;
 }
 
+export interface LodgingHost {
+  id: string;
+  name?: string;
+  email?: string;
+}
+
 export interface Lodging {
   id: string;
   title: string;
   description: string;
-  pricePerNight: number;
+  pricePerNight: number;   
   capacity: number;
+
+  rooms: number;
+  beds: number;
+  baths: number;
+
   images: string[];
-  location: Location;
+  location: LodgingLocation;
   amenities: string[];
   isActive: boolean;
+
+  host?: LodgingHost;
 }

@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage, PersistStorage } from 'zustand/middleware';
 
 type ListingStore = {
-  favorites: string[]; // ids de listings favoritos
+  favorites: string[]; 
   selectedId: string | null;
   addFavorite: (id: string) => void;
   removeFavorite: (id: string) => void;

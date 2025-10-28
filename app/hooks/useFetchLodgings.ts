@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Lodging } from '../interfaces/lodging'
 
 const useFetchLodgings = () => {
   const [lodgings, setLodgings] = useState<Lodging[]>([])

@@ -20,10 +20,28 @@ const ListingClient = () => {
   if (!lodging) return <NoLodgingFound />;
 
   const formattedPrice = new Intl.NumberFormat('es-CO').format(Number(lodging.pricePerNight));
-  const { city, address, coordinates } = lodging.location;
+  const { city, address, coordinates } = lodging.location || {};
   const amenities = lodging.amenities || [];
-  const capacity = lodging.capacity ?? 'No especificado';
+
+  const capacity = lodging.capacity ?? 1;
+  const rooms = lodging.rooms ?? 1;
+  const beds = lodging.beds ?? 1;
+  const baths = lodging.baths ?? 1;
+
   const mainImage = lodging.images?.[0] ?? '';
+
+  const handleReserveNow = () => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+    const redirectTo = `/booking?listing=${listingId}`;
+
+    if (token) {
+      router.push(redirectTo);
+    } else {
+      localStorage.setItem('postLoginRedirect', redirectTo);
+      localStorage.setItem('signupRole', 'guest');
+      router.push(`/?authOpen=1&tab=signup`);
+    }
+  };
 
   return (
     <div>
@@ -33,7 +51,11 @@ const ListingClient = () => {
         <div className="flex flex-col md:flex-row md:space-x-8 mb-8">
           <div className="w-full md:w-1/2 mb-6 md:mb-0">
             <div className="w-full h-96 bg-gray-200 rounded-lg overflow-hidden">
-              <img src={mainImage} alt={lodging.title} className="object-cover w-full h-full" />
+              {mainImage ? (
+                <img src={mainImage} alt={lodging.title} className="object-cover w-full h-full" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-gray-500">Sin imagen principal</div>
+              )}
             </div>
           </div>
 
@@ -45,14 +67,28 @@ const ListingClient = () => {
               <span className="text-2xl font-semibold text-gray-800">${formattedPrice} / noche</span>
             </div>
 
+            {/* 🆕 Detalles rápidos (huéspedes, habitaciones, camas, baños) */}
             <div className="mt-4">
-              <span className="text-lg font-semibold text-gray-800">Capacidad: </span>
-              <span className="text-lg text-gray-600">{capacity} persona(s)</span>
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">Detalles</h3>
+              <div className="flex flex-wrap gap-3 text-gray-700">
+                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gray-100">
+                  👥 {capacity} huésped{capacity === 1 ? '' : 'es'}
+                </span>
+                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gray-100">
+                  🛏️ {beds} cama{beds === 1 ? '' : 's'}
+                </span>
+                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gray-100">
+                  🚪 {rooms} habitación{rooms === 1 ? '' : 'es'}
+                </span>
+                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gray-100">
+                  🛁 {baths} baño{baths === 1 ? '' : 's'}
+                </span>
+              </div>
             </div>
 
             <div className="mt-6">
               <button
-                onClick={() => router.push('/booking')}
+                onClick={handleReserveNow}
                 className="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition-colors w-full"
               >
                 Reservar ahora
@@ -86,7 +122,7 @@ const ListingClient = () => {
               lat={coordinates.lat}
               lng={coordinates.lng}
               title={lodging.title}
-              heightClass="h-96" 
+              heightClass="h-96"
             />
           </div>
         )}

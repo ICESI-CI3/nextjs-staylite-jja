@@ -16,8 +16,13 @@ const HomePage = () => {
       try {
         const response = await fetch('http://localhost:3000/lodgings');
         const data = await response.json();
-        setLodgings(data);
-        setSearchResults(data); 
+
+        const active = Array.isArray(data)
+          ? data.filter((l) => l?.isActive === true || (l?.isActive ?? true))
+          : [];
+
+        setLodgings(active);
+        setSearchResults(active);
       } catch (error) {
         console.error('Error fetching lodgings:', error);
       }
@@ -27,10 +32,10 @@ const HomePage = () => {
 
   const handleSearch: OnSearchFn = (
     destination,
-    checkIn,
-    checkOut,
+    _checkIn,
+    _checkOut,
     guests,
-    address,
+    _address,
     amenities,
     pricePerNight
   ) => {
@@ -46,10 +51,9 @@ const HomePage = () => {
       );
     }
 
-
     if (guests && Number.isFinite(guests)) {
       results = results.filter((l) => {
-        const capacity = l?.maxGuests ?? l?.capacity ?? l?.guests ?? 0;
+        const capacity = l?.capacity ?? l?.maxGuests ?? l?.guests ?? 0;
         return Number(capacity) >= Number(guests);
       });
     }
@@ -69,9 +73,8 @@ const HomePage = () => {
     }
 
     if (Number.isFinite(pricePerNight) && pricePerNight > 0) {
-      results = results.filter((l) => Number(l?.pricePerNight) <= pricePerNight);
+      results = results.filter((l) => Number(l?.pricePerNight) <= Number(pricePerNight));
     }
-
 
     setSearchResults(results);
   };

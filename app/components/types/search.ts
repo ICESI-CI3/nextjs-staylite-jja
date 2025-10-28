@@ -7,3 +7,4 @@ export type OnSearchFn = (
   amenities: string,
   pricePerNight: number
 ) => void;
+

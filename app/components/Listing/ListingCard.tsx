@@ -29,7 +29,6 @@ const ListingCard: React.FC<ListingCardProps> = ({
     router.push(`/listing/${id}`);
   };
 
-  // Formateamos el precio para agregar el punto como separador de miles
   const formattedPrice = new Intl.NumberFormat('es-CO').format(Number(pricePerNight));
 
   return (
