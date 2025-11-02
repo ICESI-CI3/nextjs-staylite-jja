@@ -3,7 +3,7 @@
 import 'font-awesome/css/font-awesome.min.css';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import HostAuthModal from '@/app/components/auth/HostAuthModal';
+import { HostAuthModal } from '../auth/HostAuthModal';
 import { SearchBar } from './SearchBar';
 import type { OnSearchFn } from '../types/search';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -23,6 +23,12 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const isListing = pathname?.startsWith('/listing/');
+
+  const API_BASE =
+  (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL.trim() !== '')
+    ? process.env.NEXT_PUBLIC_API_URL
+    : 'http://localhost:3000';
+
 
   const normalizeRoles = (arr: any): string[] =>
     (Array.isArray(arr) ? arr : [arr])
@@ -93,7 +99,7 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
 
   const updateRolesApi = async (userIdParam: string, rolesArray: string[]) => {
     try {
-      const url = `http://localhost:3000/auth/${userIdParam}`;
+      const url = `${API_BASE}/auth/${userIdParam}`;
       const token = localStorage.getItem('authToken');
       const normalized = Array.from(new Set((rolesArray ?? []).map(r => String(r ?? '').trim().toLowerCase()).filter(Boolean)));
 
