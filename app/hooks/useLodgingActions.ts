@@ -21,6 +21,11 @@ export const useLodgingActions = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const API_BASE =
+    process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL.trim() !== ''
+      ? process.env.NEXT_PUBLIC_API_URL
+      : 'http://localhost:3000';
+
   const uploadImages = async (files: File[]): Promise<string[]> => {
     if (!files?.length) return [];
 
@@ -35,11 +40,11 @@ export const useLodgingActions = () => {
 
       for (const base64 of base64Images) {
         const formData = new FormData();
-        formData.append('image', base64.split(',')[1]); 
+        formData.append('image', base64.split(',')[1]);
 
         const res = await axios.post(
           `https://api.imgbb.com/1/upload?key=${API_KEYIMG}`,
-          formData,
+          formData
         );
 
         if (res.data?.data?.url) {
@@ -59,14 +64,12 @@ export const useLodgingActions = () => {
     }
   };
 
-  // Actualizar alojamiento
   const updateLodging = async (id: string, data: any) => {
     try {
       setLoading(true);
       setError(null);
       const token = localStorage.getItem(LS.AUTH) ?? '';
-      console.log('Updating lodging with data:', data);
-      const res = await fetch(`http://localhost:3000/lodgings/${id}`, {
+      const res = await fetch(`${API_BASE}/lodgings/${id}`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -81,13 +84,12 @@ export const useLodgingActions = () => {
     }
   };
 
-  // Desactivar alojamiento
   const deactivateLodging = async (id: string) => {
     try {
       setLoading(true);
       setError(null);
       const token = localStorage.getItem(LS.AUTH) ?? '';
-      const res = await fetch(`http://localhost:3000/lodgings/${id}/deactivate`, {
+      const res = await fetch(`${API_BASE}/lodgings/${id}/deactivate`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -101,13 +103,12 @@ export const useLodgingActions = () => {
     }
   };
 
-  // Eliminar alojamiento
   const removeLodging = async (id: string) => {
     try {
       setLoading(true);
       setError(null);
       const token = localStorage.getItem(LS.AUTH) ?? '';
-      const res = await fetch(`http://localhost:3000/lodgings/${id}`, {
+      const res = await fetch(`${API_BASE}/lodgings/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

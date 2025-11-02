@@ -6,11 +6,16 @@ const useFetchLodgings = () => {
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string>('')
 
+  const API_BASE =
+    process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL.trim() !== ''
+      ? process.env.NEXT_PUBLIC_API_URL
+      : 'http://localhost:3000'
+
   useEffect(() => {
     const fetchLodgings = async () => {
-      console.log('Fetching lodgings from API...')
+      console.log('Fetching lodgings from API...', API_BASE)
       try {
-        const response = await fetch('http://localhost:3000/lodgings')  
+        const response = await fetch(`${API_BASE}/lodgings`)  
         if (!response.ok) {
           throw new Error(`HTTP Error! status: ${response.status}`)
         }
@@ -23,7 +28,8 @@ const useFetchLodgings = () => {
         console.error('Error fetching lodgings:', error)
 
         if (error instanceof Error) {
-          setError(`Error: ${error.message}`)  
+          setError(`Error: ${error.message}`)
+        } else {
           setError('An unknown error occurred.')
         }
       } finally {
@@ -32,12 +38,9 @@ const useFetchLodgings = () => {
     }
 
     fetchLodgings()
-  }, [])  
+  }, [API_BASE])  
 
   return { lodgings, loading, error }
-
-
-  
 }
 
 export default useFetchLodgings

@@ -26,11 +26,11 @@ const normalizeRoles = (input: unknown): Role[] => {
 
 const LS = {
   ROLES: 'roles',
-  ACTIVE_ROLE: 'activeRole', // preferida para la "vista activa"
-  VIEW_AS: 'viewAs', // legacy / compat
+  ACTIVE_ROLE: 'activeRole',
+  VIEW_AS: 'viewAs',
   AUTH_TOKEN: 'authToken',
-  USER_DATA: 'userData', // { id, _id, ... }
-  USER_ID: 'userId', // guardado explícitamente por HostAuthModal si está disponible
+  USER_DATA: 'userData',
+  USER_ID: 'userId',
 } as const;
 
 function parseJwt(token?: string | null) {
@@ -74,7 +74,6 @@ function readActiveRole(): Role | null {
   }
 }
 
-
 function readUserId(): string | null {
   try {
     const direct = localStorage.getItem(LS.USER_ID);
@@ -88,7 +87,6 @@ function readUserId(): string | null {
         for (const c of candidates) {
           if (c && String(c).trim()) return String(c).trim();
         }
-        // buscar primer string parecido a id dentro de userData
         if (typeof ud === 'object') {
           for (const k of Object.keys(ud)) {
             const v = ud[k];
@@ -100,11 +98,9 @@ function readUserId(): string | null {
             }
           }
         }
-      } catch {
-      }
+      } catch {}
     }
 
-    // intentar payload del JWT
     const token = localStorage.getItem(LS.AUTH_TOKEN) || null;
     if (token) {
       const payload = parseJwt(token);
@@ -121,6 +117,12 @@ function readUserId(): string | null {
   }
 }
 
+// ---------- API_BASE desde env ----------
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL.trim() !== ''
+    ? process.env.NEXT_PUBLIC_API_URL
+    : 'http://localhost:3000';
+
 const HomePage = () => {
   const [lodgings, setLodgings] = useState<any[]>([]);
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -133,20 +135,15 @@ const HomePage = () => {
     const hostPresent = roles.includes('host');
     const hostView = hostPresent && active === 'host';
     setIsHostView(hostView);
-
-    // debug
-    console.debug('[Home] recomputeMode -> roles:', roles, 'active:', active, 'isHostView:', hostView);
   }, []);
 
   useEffect(() => {
     recomputeMode();
     const onChange = () => recomputeMode();
-
     window.addEventListener('storage', onChange);
     window.addEventListener('role:changed', onChange as EventListener);
     window.addEventListener('view:changed', onChange as EventListener);
     window.addEventListener('auth:updated', onChange as EventListener);
-
     return () => {
       window.removeEventListener('storage', onChange);
       window.removeEventListener('role:changed', onChange as EventListener);
@@ -157,52 +154,38 @@ const HomePage = () => {
 
   const fetchHostLodgingsFallback = async (hostId: string, token: string | null) => {
     const candidates = [
-      `http://localhost:3000/lodgings/${hostId}/my-lodgings`,
-      `http://localhost:3000/lodgings?ownerId=${hostId}`,
-      `http://localhost:3000/lodgings?hostId=${hostId}`,
-      `http://localhost:3000/users/${hostId}/lodgings`,
+      `${API_BASE}/lodgings/${hostId}/my-lodgings`,
+      `${API_BASE}/lodgings?ownerId=${hostId}`,
+      `${API_BASE}/lodgings?hostId=${hostId}`,
+      `${API_BASE}/users/${hostId}/lodgings`,
     ];
 
     for (const url of candidates) {
       try {
-        const r = await fetch(url, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (!r.ok) {
-          console.warn('[Home] candidate fetch failed', url, r.status);
-          continue;
-        }
+        const r = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+        if (!r.ok) continue;
         const data = await r.json();
-        if (Array.isArray(data)) {
-          console.debug('[Home] fetchHostLodgingsFallback success from', url);
-          return data;
-        }
-      } catch (err) {
-        console.warn('[Home] fetchHostLodgingsFallback error for', url, err);
-        continue;
-      }
+        if (Array.isArray(data)) return data;
+      } catch {}
     }
 
-    // fallback final: descargar todo y filtrar por campos plausibles
+    // fallback final
     try {
-      const r = await fetch('http://localhost:3000/lodgings');
+      const r = await fetch(`${API_BASE}/lodgings`);
       if (!r.ok) throw new Error('Fetch all lodgings failed');
       const all = await r.json();
       if (!Array.isArray(all)) return [];
       const plausibleFields = ['ownerId', 'hostId', 'userId', 'createdBy', 'owner'];
-      const filtered = all.filter((item: any) => {
-        for (const f of plausibleFields) {
+      return all.filter((item: any) =>
+        plausibleFields.some(f => {
           const v = item?.[f];
-          if (!v) continue;
+          if (!v) return false;
           if (String(v) === hostId) return true;
           if (typeof v === 'object' && (v.id === hostId || v._id === hostId)) return true;
-        }
-        return false;
-      });
-      console.debug('[Home] filtered by owner fields, count:', filtered.length);
-      return filtered;
-    } catch (err) {
-      console.error('[Home] final fallback failed', err);
+          return false;
+        })
+      );
+    } catch {
       return [];
     }
   };
@@ -211,7 +194,6 @@ const HomePage = () => {
     try {
       if (isHostView) {
         const hostId = readUserId();
-        console.debug('[Home] isHostView true -> hostId:', hostId);
         if (!hostId) {
           setLodgings([]);
           setSearchResults([]);
@@ -222,18 +204,14 @@ const HomePage = () => {
         setLodgings(list);
         setSearchResults(list);
       } else {
-        console.debug('[Home] guest/public view -> fetching public lodgings');
-        const r = await fetch('http://localhost:3000/lodgings');
+        const r = await fetch(`${API_BASE}/lodgings`);
         if (!r.ok) throw new Error(`Fetch public lodgings failed: ${r.status}`);
         const data = await r.json();
-        const active = Array.isArray(data)
-          ? data.filter((l) => l?.isActive === true || (l?.isActive ?? true))
-          : [];
+        const active = Array.isArray(data) ? data.filter(l => l?.isActive ?? true) : [];
         setLodgings(active);
         setSearchResults(active);
       }
-    } catch (e) {
-      console.error('[Home] fetchLodgings error', e);
+    } catch {
       setLodgings([]);
       setSearchResults([]);
     }
@@ -245,37 +223,30 @@ const HomePage = () => {
 
   const handleSearch: OnSearchFn = (destination, _a, _b, guests, _addr, amenities, pricePerNight) => {
     let results = [...lodgings];
-
     if (destination?.trim()) {
       const q = destination.toLowerCase();
-      results = results.filter((l) =>
+      results = results.filter(l =>
         (l?.location?.city ?? '').toLowerCase().includes(q) ||
         (l?.location?.country ?? '').toLowerCase().includes(q) ||
         (l?.title ?? '').toLowerCase().includes(q) ||
         (l?.location?.address ?? '').toLowerCase().includes(q)
       );
     }
-
     if (guests && Number.isFinite(guests)) {
-      results = results.filter(
-        (l) => Number(l?.capacity ?? l?.maxGuests ?? l?.guests ?? 0) >= Number(guests)
-      );
+      results = results.filter(l => Number(l?.capacity ?? l?.maxGuests ?? l?.guests ?? 0) >= Number(guests));
     }
-
     if (amenities?.trim()) {
       const reqs = amenities.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
       if (reqs.length) {
-        results = results.filter((l) => {
+        results = results.filter(l => {
           const a: string[] = (l?.amenities ?? []).map((x: string) => (x ?? '').toLowerCase());
-          return reqs.every((req) => a.some(am => am.includes(req)));
+          return reqs.every(req => a.some(am => am.includes(req)));
         });
       }
     }
-
     if (Number.isFinite(pricePerNight) && pricePerNight > 0) {
-      results = results.filter((l) => Number(l?.pricePerNight) <= Number(pricePerNight));
+      results = results.filter(l => Number(l?.pricePerNight) <= Number(pricePerNight));
     }
-
     setSearchResults(results);
   };
 
@@ -288,8 +259,7 @@ const HomePage = () => {
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
           {searchResults.length > 0 ? (
-            // ejemplo dentro de tu map
-            searchResults.map((lodging) => (
+            searchResults.map(lodging => (
               <ListingCard
                 key={lodging.id ?? lodging._id}
                 title={lodging.title}
@@ -309,7 +279,6 @@ const HomePage = () => {
                 onAction={() => router.push(`/listing/${lodging.id ?? lodging._id}`)}
               />
             ))
-
           ) : (
             <p className="col-span-full text-center">
               {isHostView ? 'No tienes alojamientos creados todavía.' : 'No se encontraron resultados.'}

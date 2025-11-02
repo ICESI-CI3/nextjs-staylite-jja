@@ -1,131 +1,48 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import useFetchLodging from '@/app/hooks/useFetchLodgingid';
+import React from 'react';
 import { Navbar } from '@/app/components/NavBar/NavBar';
 import LodgingMap from '@/app/components/Listing/Map';
 import LoadingSpinner from '@/app/components/LoadingSpinner';
 import ErrorMessage from '@/app/components/ErrorMessage';
 import NoLodgingFound from '@/app/components/NoLodgingFound';
 import BookingCreate from '@/app/booking/BookingCreate';
-import PaymentCreate from '@/app/payment/PaymentCreate'; // ajústalo si tu path es distinto
-
-const LS = {
-  ACTIVE: 'activeRole',
-  VIEWAS: 'viewAs',
-  PREV: 'prevActiveRole',
-  AUTH: 'authToken',
-  POST_LOGIN: 'postLoginRedirect',
-  SIGNUP_ROLE: 'signupRole',
-};
+import PaymentCreate from '@/app/payment/PaymentCreate';
+import useListingLogic from '@/app/hooks/useListingLogic';
+import { useParams } from 'next/navigation';
 
 const ListingClient = () => {
-  const [showBooking, setShowBooking] = useState(false);
-  const [showPayment, setShowPayment] = useState(false);
-  const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
-  const [navigating, setNavigating] = useState(false);
-
   const { listingId } = useParams();
-  const router = useRouter();
+  const {
+    lodging,
+    loading,
+    error,
 
-  const { lodging, loading, error } = useFetchLodging(listingId as string);
+    showBooking,
+    setShowBooking,
+    showPayment,
+    pendingBookingId,
 
-  useEffect(() => {
-    try {
-      const current = localStorage.getItem(LS.ACTIVE) ?? localStorage.getItem(LS.VIEWAS) ?? null;
-      if (current) {
-        localStorage.setItem(LS.PREV, current);
-      }
-    } catch (err) {
-      // noop
-    }
-  }, []);
+    handleReserveNow,
+    handleReturnHomeRestore,
+    handleGoBack,
+    handleBookingCreated,
+
+    formattedPrice,
+    city,
+    address,
+    coordinates,
+    amenities,
+    capacity,
+    rooms,
+    beds,
+    baths,
+    mainImage,
+  } = useListingLogic(listingId as string | undefined);
 
   if (loading) return <LoadingSpinner />;
   if (error) return <ErrorMessage message="Ocurrió un error al cargar los datos. Intenta nuevamente." />;
   if (!lodging) return <NoLodgingFound />;
-
-  const formattedPrice = new Intl.NumberFormat('es-CO').format(Number(lodging.pricePerNight));
-  const { city, address, coordinates } = lodging.location || {};
-  const amenities = lodging.amenities || [];
-
-  const capacity = lodging.capacity ?? 1;
-  const rooms = lodging.rooms ?? 1;
-  const beds = lodging.beds ?? 1;
-  const baths = lodging.baths ?? 1;
-
-  const mainImage = lodging.images?.[0] ?? '';
-
-  const handleReserveNow = async () => {
-    if (navigating) return;
-    setNavigating(true);
-    try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem(LS.AUTH) : null;
-      const redirectTo = `/booking`;
-
-      if (token) {
-        setShowBooking(true);
-      } else {
-        localStorage.setItem(LS.POST_LOGIN, redirectTo);
-        localStorage.setItem(LS.SIGNUP_ROLE, 'guest');
-        await router.push(`/?authOpen=1&tab=signup`);
-      }
-    } catch (err) {
-      console.error('Error en handleReserveNow:', err);
-    } finally {
-      setNavigating(false);
-    }
-  };
-
-  const handleReturnHomeRestore = () => {
-    try {
-      const prev = localStorage.getItem(LS.PREV);
-      if (prev) {
-        localStorage.setItem(LS.ACTIVE, prev);
-        localStorage.setItem(LS.VIEWAS, prev);
-
-        window.dispatchEvent(new CustomEvent('role:changed', { detail: { activeRole: prev } }));
-        window.dispatchEvent(new CustomEvent('view:changed', { detail: { viewAs: prev } }));
-
-        window.dispatchEvent(new Event('auth:updated'));
-      }
-    } catch (err) {
-      console.error('Error al restaurar vista previa:', err);
-    } finally {
-      router.push('/');
-    }
-  };
-
-  const handleGoBack = () => {
-    router.back();
-  };
-
-  // NUEVO: manejador que recibe bookingId desde BookingCreate
-  const handleBookingCreated = (bookingId: string) => {
-    // cerramos el modal de booking
-    setShowBooking(false);
-
-    // guardamos el id y abrimos el modal de pago
-    setPendingBookingId(bookingId);
-
-    // PaymentCreate lee localStorage.pendingPayment (BookingCreate ya lo guarda),
-    // pero por seguridad podemos asegurarnos de setear pendingPayment mínimo
-    try {
-      if (typeof window !== 'undefined') {
-        const existing = localStorage.getItem('pendingPayment');
-        if (!existing) {
-          // podrías guardar un pendingPayment mínimo aquí si lo deseas
-          localStorage.setItem('pendingBooking', JSON.stringify({ bookingId }));
-        }
-      }
-    } catch (e) {
-      console.warn('No se pudo setear pendingBooking', e);
-    }
-
-    // mostramos el modal de pago
-    setShowPayment(true);
-  };
 
   return (
     <div>
@@ -184,10 +101,10 @@ const ListingClient = () => {
               </div>
             </div>
 
-            <div>
+            <div className="mt-8 flex justify-center">
               <button
                 onClick={handleReserveNow}
-                className="bg-pink-600 text-white px-6 py-3 rounded-md hover:bg-pink-700"
+                className="bg-pink-600 text-white px-16 py-5 rounded-2xl text-xl font-bold shadow-lg hover:bg-fuchsia-300 hover:scale-105 transition-transform duration-200 w-full max-w-md"
               >
                 Reservar ahora
               </button>
@@ -200,7 +117,6 @@ const ListingClient = () => {
                 pricePerNight={Number(lodging.pricePerNight)}
                 title={lodging.title}
                 onClose={() => setShowBooking(false)}
-                // ahora onBooked recibe bookingId
                 onBooked={(bookingId: string) => handleBookingCreated(bookingId)}
               />
             )}
@@ -217,7 +133,7 @@ const ListingClient = () => {
             {amenities.length > 0 && (
               <div className="mt-6">
                 <h3 className="text-xl font-semibold text-gray-800 mb-4">Comodidades</h3>
-                <ul className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm text-gray-700">
+                <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-sm text-gray-700">
                   {amenities.map((amenity: string, index: number) => (
                     <li key={index} className="flex items-center gap-2">
                       <span className="inline-block w-4 h-4 bg-blue-600 rounded-full" />

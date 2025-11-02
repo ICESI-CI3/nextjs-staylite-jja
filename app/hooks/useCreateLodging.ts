@@ -11,7 +11,12 @@ function getToken(): string | null {
   }
 }
 
-export function useCreateLodging(baseUrl = 'http://localhost:3000') {
+const API_BASE =
+    (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL.trim() !== '')
+      ? process.env.NEXT_PUBLIC_API_URL
+      : 'http://localhost:3000';
+
+export function useCreateLodging(baseUrl = API_BASE) {
   console.log('useCreateLodging initialized with baseUrl:', baseUrl);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,10 +36,8 @@ export function useCreateLodging(baseUrl = 'http://localhost:3000') {
         throw err;
       }
 
-      // Crear un objeto FormData
       const formData = new FormData();
       
-      // Agregar los datos del payload a FormData
       formData.append('title', String(payload.title).trim());
       formData.append('description', String(payload.description).trim());
       formData.append('pricePerNight', String(payload.pricePerNight ?? 0));
@@ -71,7 +74,7 @@ export function useCreateLodging(baseUrl = 'http://localhost:3000') {
           msg = Array.isArray(body?.message)
             ? body.message.join(', ')
             : body?.message || msg;
-        } catch { /* ignore */ }
+        } catch { }
         throw new Error(msg);
       }
 

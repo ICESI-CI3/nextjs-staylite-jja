@@ -11,13 +11,18 @@ export const useAuth = () => {
   const [passS, setPassS] = useState('');
   const [name, setName] = useState('');
 
-  const registerUser = async (email: string, password: string, userData: { name: string, roles: string[] }) => {
+  const API_BASE =
+    process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL.trim() !== ''
+      ? process.env.NEXT_PUBLIC_API_URL
+      : 'http://localhost:3000';
+
+  const registerUser = async (email: string, password: string, userData: { name: string; roles: string[] }) => {
     setLoading(true);
     try {
       const requestData = { email, password, ...userData };
       console.log('Sending data to register:', requestData);
 
-      const response = await fetch('http://localhost:3000/auth/register', {
+      const response = await fetch(`${API_BASE}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestData),
@@ -33,11 +38,8 @@ export const useAuth = () => {
       console.log('Registration successful:', data);
       return data;
     } catch (error: unknown) {
-      if (error instanceof Error) {
-        setError(error.message);
-      } else {
-        setError('Error desconocido');
-      }
+      if (error instanceof Error) setError(error.message);
+      else setError('Error desconocido');
       console.error('Error during registration:', error);
       return null;
     } finally {
@@ -51,7 +53,7 @@ export const useAuth = () => {
       const requestData = { email, password };
       console.log('Sending data to login:', requestData);
 
-      const response = await fetch('http://localhost:3000/auth/login', {
+      const response = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestData),
@@ -66,16 +68,10 @@ export const useAuth = () => {
       setToken(data.token);
       console.log('Login successful:', data);
 
-      return {
-        ...data,
-        twoFactorRequired: data.twoFactorRequired ?? false, 
-      };
+      return { ...data, twoFactorRequired: data.twoFactorRequired ?? false };
     } catch (error: unknown) {
-      if (error instanceof Error) {
-        setError(error.message);
-      } else {
-        setError('Error desconocido');
-      }
+      if (error instanceof Error) setError(error.message);
+      else setError('Error desconocido');
       console.error('Error during login:', error);
       return null;
     } finally {
@@ -89,7 +85,7 @@ export const useAuth = () => {
 
     try {
       const requestData = { email, password, token: twoFactorCode };
-      const response = await fetch('http://localhost:3000/auth/2fa/verify', {
+      const response = await fetch(`${API_BASE}/auth/2fa/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestData),
@@ -108,18 +104,14 @@ export const useAuth = () => {
 
       return data;
     } catch (error: unknown) {
-      if (error instanceof Error) {
-        setError(error.message);
-      } else {
-        setError('Error desconocido');
-      }
+      if (error instanceof Error) setError(error.message);
+      else setError('Error desconocido');
       console.error('Error during 2FA verification:', error);
       return null;
     } finally {
       setLoading(false);
     }
   };
-
 
   const logoutUser = () => {
     setToken(null);
@@ -133,7 +125,6 @@ export const useAuth = () => {
     setName('');
   };
 
-
   return {
     loading,
     error,
@@ -144,4 +135,3 @@ export const useAuth = () => {
     logoutUser,
   };
 };
-
