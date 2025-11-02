@@ -42,22 +42,18 @@ export function useCreateLodging(baseUrl = 'http://localhost:3000') {
       formData.append('rooms', String(payload.rooms));
       formData.append('beds', String(payload.beds));
       formData.append('baths', String(payload.baths));
-      formData.append('location', JSON.stringify(payload.location)); // Enviar ubicación como JSON
-      formData.append('amenities', JSON.stringify(payload.amenities ?? [])); // Agregar comodidades
+      formData.append('location', JSON.stringify(payload.location)); 
+      formData.append('amenities', JSON.stringify(payload.amenities ?? [])); 
 
-      // Agregar las imágenes a FormData
       files.forEach((file, index) => {
-        // Aquí asumimos que `file` es una cadena Base64, por lo que lo agregamos como un valor en FormData
-        formData.append('images', file); // Enviar imágenes como base64
+        formData.append('images', file);
       });
 
       console.log('FormData preparado para enviar:', formData);
-      // Enviar la solicitud POST usando fetch y FormData
       const res = await fetch(`${baseUrl}/lodgings`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
-          // No es necesario Content-Type cuando se usa FormData
         },
         body: formData,
       });

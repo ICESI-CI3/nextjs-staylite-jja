@@ -1,3 +1,4 @@
+// pages/listing/new OR app/(...)/NewListingPage.tsx (usa la ruta que ya tienes)
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -91,9 +92,17 @@ export default function NewListingPage() {
     try {
       setSubmitting(true);
 
-    const base64Images = imageFiles.map((file) => {
-      return file;  
-    });
+      // guardar la vista actual previa para poder restaurarla después (si el usuario quiere)
+      try {
+        const currentActive = localStorage.getItem('activeRole') ?? localStorage.getItem('viewAs') ?? '';
+        if (currentActive) {
+          localStorage.setItem('prevActiveRole', currentActive);
+        }
+      } catch (e) {
+        // noop si falla
+      }
+
+      const base64Images = imageFiles.map((file) => file); // ya vienen en base64 desde StepPhotos
 
       const lodgingPayload = {
         title: String(draft.title).trim(),
@@ -104,27 +113,28 @@ export default function NewListingPage() {
         beds: draft.beds,
         baths: draft.baths,
         location: draft.location,
-        images: base64Images,  // Ahora pasamos directamente las imágenes en Base64 sin encabezado
+        images: base64Images,
         amenities: draft.amenities ?? [],
       };
 
-      // Usamos el hook `createLodging` para enviar el alojamiento
-      const json = await createLodging(lodgingPayload, base64Images);  // Pasamos el payload y las imágenes
+      // envia al backend
+      const json = await createLodging(lodgingPayload, base64Images);
 
       console.log('Alojamiento creado con éxito:', json);
 
       if (json?.id) {
         setDraft((prevDraft) => ({
           ...prevDraft,
-          id: json.id, // Asignar el ID recibido de la respuesta al draft
+          id: json.id,
         }));
       }
 
-      // Limpiar el draft y redirigir a la página del nuevo alojamiento
       clearDraft();
-      router.replace(`/listing/${json?.id ?? ''}`);
-      setSubmitting(false);
 
+      // REDIRIGIR A LA PÁGINA DE EDICIÓN (en lugar de la vista pública)
+      // antes de navegar ya guardamos prevActiveRole arriba para restaurar home después
+      router.replace(`/listing/${json?.id ?? ''}/edit`);
+      setSubmitting(false);
     } catch (e: any) {
       if (e?.code === 'UNAUTHENTICATED' || e?.code === 'UNAUTHORIZED') {
         localStorage.setItem('postLoginRedirect', '/listing/new');

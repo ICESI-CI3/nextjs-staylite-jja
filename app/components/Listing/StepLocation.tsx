@@ -10,12 +10,11 @@ export default function StepLocation({
   const [geoLoading, setGeoLoading] = React.useState(false);
   const [geoError, setGeoError] = React.useState<string | null>(null);
 
-  // Debounce: geocodificar cuando cambien address/city/country
   React.useEffect(() => {
     const { address, city, country } = draft.location;
     const query = [address, city, country].filter(Boolean).join(', ').trim();
 
-    if (!query || query.length < 4) return; // evita consultas muy cortas
+    if (!query || query.length < 4) return; 
 
     setGeoError(null);
     const t = setTimeout(async () => {
@@ -99,7 +98,7 @@ export default function StepLocation({
             lng={draft.location.coordinates.lng || -76.5320}
             title={draft.title || 'Ubicación del alojamiento'}
             heightClass="h-96"
-            interactive={false} // 👈 desactivamos la interacción del usuario
+            interactive={false} 
           />
         </div>
 

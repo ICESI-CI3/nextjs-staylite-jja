@@ -3,7 +3,7 @@
 import React, { useMemo, useEffect, useState } from 'react';
 
 type Props = {
-  imageFiles: string[];  // Cambia el tipo de File[] a string[] para almacenar las imágenes en Base64
+  imageFiles: string[];  
   setImageFiles: React.Dispatch<React.SetStateAction<string[]>>;
 };
 
@@ -11,13 +11,12 @@ export default function StepPhotos({ imageFiles, setImageFiles }: Props) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const files = Array.isArray(imageFiles) ? imageFiles : [];
 
-  // Función para convertir la imagen a Base64
   const convertToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result as string);
       reader.onerror = reject;
-      reader.readAsDataURL(file);  // Convierte la imagen a Base64
+      reader.readAsDataURL(file);  
     });
   };
 
@@ -39,9 +38,8 @@ export default function StepPhotos({ imageFiles, setImageFiles }: Props) {
   const addFiles = async (incoming: File[]) => {
     if (!incoming?.length) return;
     
-    // Convierte las imágenes seleccionadas a Base64
     const validFiles = await Promise.all(incoming.filter(validateFile).map(async (file) => {
-      const base64 = await convertToBase64(file);  // Convierte a Base64
+      const base64 = await convertToBase64(file);  
       return base64;
     }));
 
@@ -68,9 +66,9 @@ export default function StepPhotos({ imageFiles, setImageFiles }: Props) {
 
   const previews = useMemo(() => {
     return files.map(f => ({
-      key: `${f}-${f.length}`, // Utiliza el Base64 directamente para crear un identificador único
+      key: `${f}-${f.length}`,
       name: 'Imagen',
-      url: f,  // Aquí simplemente mostramos el Base64 como una URL
+      url: f, 
     }));
   }, [files]);
 

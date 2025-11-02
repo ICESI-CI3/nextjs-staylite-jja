@@ -35,3 +35,19 @@ export interface Lodging {
 
   host?: LodgingHost;
 }
+
+
+export interface LodgingForm {
+  title: string;
+  description: string;
+  pricePerNight: number;
+  capacity: number;
+  rooms: number;
+  beds: number;
+  baths: number;
+  amenities: string[];
+  city: string;
+  address: string;
+  coordinates: { lat: number; lng: number };
+  images: string[];
+}
