@@ -221,34 +221,58 @@ const HomePage = () => {
     fetchLodgings();
   }, [fetchLodgings, isHostView]);
 
-  const handleSearch: OnSearchFn = (destination, _a, _b, guests, _addr, amenities, pricePerNight) => {
-    let results = [...lodgings];
-    if (destination?.trim()) {
-      const q = destination.toLowerCase();
-      results = results.filter(l =>
-        (l?.location?.city ?? '').toLowerCase().includes(q) ||
-        (l?.location?.country ?? '').toLowerCase().includes(q) ||
-        (l?.title ?? '').toLowerCase().includes(q) ||
-        (l?.location?.address ?? '').toLowerCase().includes(q)
-      );
+  const handleSearch: OnSearchFn = async (
+  destination,
+  checkIn,
+  checkOut,
+  guests,
+  _addr,
+  amenities,
+  pricePerNight
+) => {
+  try {
+    const token = localStorage.getItem(LS.AUTH_TOKEN) || null;
+
+    // Si no hay ningún filtro, restauramos todos los alojamientos
+    const noFilters =
+      !destination?.trim() &&
+      !checkIn &&
+      !checkOut &&
+      (!guests || guests <= 0) &&
+      !amenities?.trim() &&
+      (!pricePerNight || pricePerNight <= 0);
+
+    if (noFilters) {
+      setSearchResults(lodgings); // reset
+      return;
     }
-    if (guests && Number.isFinite(guests)) {
-      results = results.filter(l => Number(l?.capacity ?? l?.maxGuests ?? l?.guests ?? 0) >= Number(guests));
+
+    const params = new URLSearchParams();
+    if (checkIn) params.append('checkIn', checkIn);
+    if (checkOut) params.append('checkOut', checkOut);
+    if (guests) params.append('guests', guests.toString());
+    if (destination) params.append('destination', destination);
+    if (amenities) params.append('amenities', amenities);
+    if (pricePerNight && pricePerNight > 0) params.append('maxPrice', pricePerNight.toString());
+
+    const res = await fetch(`${API_BASE}/bookings/search?${params.toString()}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+
+    if (!res.ok) {
+      console.error('Error fetching listings:', res.status, await res.text());
+      setSearchResults([]); // vaciar resultados en caso de error
+      return;
     }
-    if (amenities?.trim()) {
-      const reqs = amenities.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-      if (reqs.length) {
-        results = results.filter(l => {
-          const a: string[] = (l?.amenities ?? []).map((x: string) => (x ?? '').toLowerCase());
-          return reqs.every(req => a.some(am => am.includes(req)));
-        });
-      }
-    }
-    if (Number.isFinite(pricePerNight) && pricePerNight > 0) {
-      results = results.filter(l => Number(l?.pricePerNight) <= Number(pricePerNight));
-    }
-    setSearchResults(results);
-  };
+
+    const listings = await res.json();
+    setSearchResults(listings);
+  } catch (error) {
+    console.error('Error searching listings:', error);
+    setSearchResults([]);
+  }
+};
+
 
   return (
     <div>

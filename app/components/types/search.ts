@@ -5,6 +5,6 @@ export type OnSearchFn = (
   guests: number,
   address: string,
   amenities: string,
-  pricePerNight: number
+  maxPrice: number,
+  listings?: any[] 
 ) => void;
-
