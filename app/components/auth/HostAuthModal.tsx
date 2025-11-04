@@ -8,10 +8,15 @@ interface HostAuthModalProps {
   open: boolean;
   onClose: () => void;
   setIsAuthenticated: React.Dispatch<React.SetStateAction<boolean>>;
-  setUserName: React.Dispatch<React.SetStateAction<string | null>>;
+  setUserName: React.Dispatch<React.SetStateAction<string | null>>; // <-- CORRECIÓN
 }
 
-export const HostAuthModal: React.FC<HostAuthModalProps> = ({ open, onClose, setIsAuthenticated, setUserName }) => {
+export const HostAuthModal: React.FC<HostAuthModalProps> = ({
+  open,
+  onClose,
+  setIsAuthenticated,
+  setUserName, // ahora tipado correctamente
+}) => {
   const {
     tab, setTab,
     name, setName,
@@ -148,3 +153,5 @@ export const HostAuthModal: React.FC<HostAuthModalProps> = ({ open, onClose, set
     </Modal>
   );
 };
+
+export default HostAuthModal;

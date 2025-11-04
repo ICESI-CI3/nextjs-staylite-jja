@@ -1,18 +1,18 @@
 'use client';
 
 import 'font-awesome/css/font-awesome.min.css';
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { HostAuthModal } from '../auth/HostAuthModal';
 import { SearchBar } from './SearchBar';
 import type { OnSearchFn } from '../types/search';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useAuthStore } from '@/app/stores/stores';
 
 export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
+  // UI / modal local
   const [authOpen, setAuthOpen] = useState(false);
   const [authTab, setAuthTab] = useState<'signup' | 'login'>('signup');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userName, setUserName] = useState<string | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
   const [modalKey, setModalKey] = useState(0);
   const [userId, setUserId] = useState<string | null>(null);
@@ -25,11 +25,34 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
   const isListing = pathname?.startsWith('/listing/');
 
   const API_BASE =
-  (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL.trim() !== '')
-    ? process.env.NEXT_PUBLIC_API_URL
-    : 'http://localhost:3000';
+    (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL.trim() !== '')
+      ? process.env.NEXT_PUBLIC_API_URL
+      : 'http://localhost:3000';
 
+  // ------------------ Zustand (auth central) ------------------
+  const token = useAuthStore((s) => s.token);
+  const authName = useAuthStore((s) => s.name);
+  const loading = useAuthStore((s) => s.loading);
 
+  // setters/actions
+  const setToken = useAuthStore((s) => s.setToken);
+  const setName = useAuthStore((s) => s.setName);
+  const setTab = useAuthStore((s) => s.setTab);
+  const setEmailL = useAuthStore((s) => s.setEmailL);
+  const setPassL = useAuthStore((s) => s.setPassL);
+  const setEmailS = useAuthStore((s) => s.setEmailS);
+  const setPassS = useAuthStore((s) => s.setPassS);
+  const setTwoFactorCode = useAuthStore((s) => s.setTwoFactorCode);
+  const qrCodeUrl = useAuthStore((s) => s.qrCodeUrl);
+  const is2FARequired = useAuthStore((s) => s.is2FARequired);
+
+  const registerUser = useAuthStore((s) => s.registerUser);
+  const loginUser = useAuthStore((s) => s.loginUser);
+  const verifyTwoFactor = useAuthStore((s) => s.verifyTwoFactor);
+  const logoutUser = useAuthStore((s) => s.logoutUser);
+  const resetAuthState = useAuthStore((s) => s.resetState);
+
+  // ------------------ helpers for localStorage roles / userId ------------------
   const normalizeRoles = (arr: any): string[] =>
     (Array.isArray(arr) ? arr : [arr])
       .filter((v) => v !== null && v !== undefined)
@@ -48,7 +71,7 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
     if (typeof v === 'string') {
       const looksJsonArray = v.trim().startsWith('[') && v.trim().endsWith(']');
       if (looksJsonArray) {
-        try { v = JSON.parse(v); } catch {}
+        try { v = JSON.parse(v); } catch { }
       }
     }
     if (!v || (Array.isArray(v) && v.length === 0)) {
@@ -96,34 +119,26 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
     window.dispatchEvent(new Event('auth:updated'));
   };
 
-
+  // ------------------ roles API (kept local) ------------------
   const updateRolesApi = async (userIdParam: string, rolesArray: string[]) => {
     try {
       const url = `${API_BASE}/auth/${userIdParam}`;
-      const token = localStorage.getItem('authToken');
+      const t = localStorage.getItem('authToken');
       const normalized = Array.from(new Set((rolesArray ?? []).map(r => String(r ?? '').trim().toLowerCase()).filter(Boolean)));
-
-      console.log('[updateRolesApi] PATCH', url, 'body:', { roles: normalized });
 
       const res = await fetch(url, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(t ? { Authorization: `Bearer ${t}` } : {}),
         },
         body: JSON.stringify({ roles: normalized }),
       });
 
       const text = await res.text().catch(() => '');
-      console.log(`[updateRolesApi] status ${res.status} - body:`, text);
-
-      if (!res.ok) {
-        return { ok: false, status: res.status, bodyText: text };
-      }
-
+      if (!res.ok) return { ok: false, status: res.status, bodyText: text };
       let data: any = null;
       try { data = text ? JSON.parse(text) : null; } catch { data = text; }
-
       const returnedRoles = Array.isArray(data?.roles) ? data.roles.map((r: any) => String(r).toLowerCase()) : normalized;
       return { ok: true, roles: returnedRoles, data };
     } catch (error) {
@@ -145,22 +160,14 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
     try {
       const current = roles.map(r => String(r).toLowerCase());
       const want = Array.from(new Set([...current, String(roleToAdd).toLowerCase()]));
-
-      console.log('addRole: uid=', uid, 'want=', want);
       const res = await updateRolesApi(uid, want);
-      console.log('addRole:updateRolesApi result', res);
-
-      if (!res.ok) {
-        console.error('addRole failed', res);
-        return { ok: false, error: res };
-      }
-
+      if (!res.ok) return { ok: false, error: res };
       const finalRoles = Array.isArray(res.roles) ? res.roles : want;
       localStorage.setItem('roles', JSON.stringify(finalRoles));
       setRoles(finalRoles);
       setUserId(uid);
       window.dispatchEvent(new Event('auth:updated'));
-      try { router.refresh(); } catch {}
+      try { router.refresh(); } catch { }
       return { ok: true, roles: finalRoles };
     } finally {
       setPending(false);
@@ -180,34 +187,26 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
     try {
       const current = roles.map(r => String(r).toLowerCase());
       const want = current.filter(r => r !== String(roleToRemove).toLowerCase());
-
-      console.log('removeRole: uid=', uid, 'want=', want);
       const res = await updateRolesApi(uid, want);
-      console.log('removeRole:updateRolesApi result', res);
-
-      if (!res.ok) {
-        console.error('removeRole failed', res);
-        return { ok: false, error: res };
-      }
-
+      if (!res.ok) return { ok: false, error: res };
       const finalRoles = Array.isArray(res.roles) ? res.roles : want;
       localStorage.setItem('roles', JSON.stringify(finalRoles));
       setRoles(finalRoles);
       setUserId(uid);
       window.dispatchEvent(new Event('auth:updated'));
-      try { router.refresh(); } catch {}
+      try { router.refresh(); } catch { }
       return { ok: true, roles: finalRoles };
     } finally {
       setPending(false);
     }
   };
 
-  // ---------------- view management ----------------
+  // ------------------ view management ------------------
   const setViewMode = (mode: 'host' | 'guest') => {
     setViewAs(mode);
     try {
       localStorage.setItem('viewAs', mode);
-      localStorage.setItem('activeRole', mode); 
+      localStorage.setItem('activeRole', mode);
     } catch (err) {
       console.warn('Could not write view to localStorage', err);
     }
@@ -216,23 +215,21 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
     window.dispatchEvent(new Event('auth:updated'));
   };
 
-
+  // ------------------ effects ------------------
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    const name = localStorage.getItem('userName');
-
     setRoles(readRoles());
     setUserId(readUserId());
-
     const savedView = localStorage.getItem('viewAs') as 'host' | 'guest' | null;
     if (savedView) setViewAs(savedView);
 
-    if (token && name) {
-      setIsAuthenticated(true);
-      setUserName(name);
+    const tokenLocal = localStorage.getItem('authToken');
+    const nameLocal = localStorage.getItem('userName');
+    if (tokenLocal && nameLocal) {
+      setToken(tokenLocal); // sincroniza store
+      setName(nameLocal);
     } else {
-      setIsAuthenticated(false);
-      setUserName(null);
+      // limpiar store si no hay token en localStorage
+      if (!tokenLocal) setToken(null);
     }
   }, []);
 
@@ -245,27 +242,28 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
       if (!e.key) { updateRoles(); return; }
       if (['roles', 'userData', 'userId'].includes(e.key)) updateRoles();
     };
-    window.addEventListener('auth:updated', updateRoles);
+    window.addEventListener('auth:updated', updateRoles as EventListener);
     window.addEventListener('storage', storageHandler);
     return () => {
-      window.removeEventListener('auth:updated', updateRoles);
+      window.removeEventListener('auth:updated', updateRoles as EventListener);
       window.removeEventListener('storage', storageHandler);
     };
   }, []);
 
-  useEffect(() => { setRoles(readRoles()); }, [isAuthenticated]);
+  useEffect(() => { setRoles(readRoles()); }, [token]);
 
   useEffect(() => {
     const shouldOpen = searchParams.get('authOpen') === '1';
-    const tab = (searchParams.get('tab') as 'signup' | 'login') || 'signup';
+    const tabParam = (searchParams.get('tab') as 'signup' | 'login') || 'signup';
     if (shouldOpen) {
-      setAuthTab(tab);
+      setAuthTab(tabParam);
       setAuthOpen(true);
     }
   }, [searchParams]);
 
+  // ------------------ handlers ------------------
   const handleGoProfile = () => {
-    if (!isAuthenticated) {
+    if (!token) {
       setAuthTab('login');
       setAuthOpen(true);
       return;
@@ -274,7 +272,7 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
   };
 
   const handleCreateListing = async () => {
-    if (!isAuthenticated) {
+    if (!token) {
       localStorage.setItem('signupRole', 'host');
       setAuthTab('signup');
       setAuthOpen(true);
@@ -290,13 +288,12 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
   };
 
   const handleConvertToHost = async () => {
-    if (!isAuthenticated) {
+    if (!token) {
       localStorage.setItem('signupRole', 'host');
       setAuthTab('signup');
       setAuthOpen(true);
       return;
     }
-    // if already has host, show view
     const lower = roles.map((r) => r.toLowerCase());
     if (lower.includes('host')) {
       setViewMode('host');
@@ -310,7 +307,6 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
         setViewMode('host');
         return;
       }
-      // try replace by ['host']
       const uid = userId ?? readUserId();
       if (!uid) throw new Error('no userid');
       const replace = await updateRolesApi(uid, ['host']);
@@ -330,7 +326,7 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
   };
 
   const handleConvertToGuest = async () => {
-    if (!isAuthenticated) {
+    if (!token) {
       setAuthTab('signup');
       setAuthOpen(true);
       return;
@@ -359,7 +355,6 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
         return;
       }
 
-      // fallback: ask if user wants to remove host and stay only guest
       const confirmRemove = confirm('El servidor no permitió añadir "guest". ¿Intentar eliminar "host" y quedarte solo como "guest"?');
       if (confirmRemove) {
         const rm = await removeRole('host');
@@ -381,14 +376,13 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
 
   const handleLogout = () => {
     const keys = [
-      'authToken','userName','userData','roles','twoFactorRequired','qrCodeUrl',
-      'twoFactorEnabled','twoFactorSecret','twoFactorTempToken','twoFactorCode',
-      'postLoginRedirect','signupRole','userId','viewAs','activeRole'
+      'authToken', 'userName', 'userData', 'roles', 'twoFactorRequired', 'qrCodeUrl',
+      'twoFactorEnabled', 'twoFactorSecret', 'twoFactorTempToken', 'twoFactorCode',
+      'postLoginRedirect', 'signupRole', 'userId', 'viewAs', 'activeRole'
     ];
     keys.forEach((k) => localStorage.removeItem(k));
-    try { sessionStorage.clear(); } catch {}
-    setIsAuthenticated(false);
-    setUserName(null);
+    try { sessionStorage.clear(); } catch { }
+    logoutUser(); // limpia state en zustand
     setRoles([]);
     setAuthOpen(false);
     setAuthTab('signup');
@@ -396,7 +390,7 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
     setViewAs(null);
     saveActiveRole(null);
     router.push('/');
-    router.refresh();
+    try { router.refresh(); } catch { }
     window.dispatchEvent(new Event('auth:updated'));
   };
 
@@ -405,6 +399,7 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
   const isAdmin = roleSet.has('admin');
   const isGuest = roleSet.has('guest');
 
+  // ------------------ JSX ------------------
   return (
     <>
       <nav className={`bg-blue-600 w-full flex justify-between items-center mx-auto px-8 transition-all duration-300 ${isListing ? 'py-2' : 'py-1'}`}>
@@ -426,24 +421,24 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
         </div>
 
         <div className="flex items-center space-x-3">
-          {isAuthenticated && (
+          {token && (
             <button type="button" onClick={handleGoProfile} className="py-2 px-4 text-sm bg-white text-blue-700 rounded-full hover:bg-gray-200 transition">
               Ir al perfil
             </button>
           )}
 
-          {isAuthenticated && (isHost) && (
+          {token && (isHost) && (
             <button
               type="button"
               onClick={handleCreateListing}
               disabled={pending}
-              className={`py-2 px-4 text-sm rounded-full ${pending ? 'opacity-60 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700' } transition`}
+              className={`py-2 px-4 text-sm rounded-full ${pending ? 'opacity-60 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700'} transition`}
             >
               Crear listing
             </button>
           )}
 
-          {!isAuthenticated ? (
+          {!token ? (
             <>
               <button type="button" onClick={() => { localStorage.setItem('signupRole', 'host'); setAuthTab('signup'); setAuthOpen(true); }} className="py-2 px-4 text-sm bg-white text-black rounded-full hover:bg-gray-200 transition">
                 Convertirme en anfitrión
@@ -455,7 +450,6 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
             </>
           ) : (
             <>
-
               {isHost ? (
                 <button
                   type="button"
@@ -475,7 +469,6 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
                 </button>
               )}
 
-              {/* Ver como huésped (si tiene guest) OR Convertirme en huésped (si no lo tiene) */}
               {isGuest ? (
                 <button
                   type="button"
@@ -497,7 +490,7 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
             </>
           )}
 
-          {isAuthenticated && (
+          {token && (
             <button type="button" onClick={handleLogout} className="py-2 px-4 text-sm bg-red-600 text-white rounded-full hover:bg-red-700 transition">
               Cerrar sesión
             </button>
@@ -524,9 +517,35 @@ export const Navbar = ({ onSearch }: { onSearch: OnSearchFn }) => {
           }
           setRoles(readRoles());
           setUserId(readUserId());
+          // opcional: resetear estado UI del auth en el store
+          resetAuthState();
         }}
-        setIsAuthenticated={setIsAuthenticated}
-        setUserName={setUserName}
+        setIsAuthenticated={(v) => {
+          if (!v) {
+            setToken(null);
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('userName');
+          } else {
+            const t = localStorage.getItem('authToken');
+            const n = localStorage.getItem('userName') ?? undefined;
+            if (t) setToken(t);
+            if (n) setName(n);
+          }
+        }}
+        setUserName={(value: React.SetStateAction<string | null>) => {
+          const current = typeof window !== 'undefined' ? localStorage.getItem('userName') : null;
+          const resolved =
+            typeof value === 'function'
+              ? (value as (prev: string | null) => string | null)(current)
+              : value;
+
+          if (resolved) localStorage.setItem('userName', resolved);
+          else localStorage.removeItem('userName');
+
+          setName(resolved ?? '');
+        }}
+
+
       />
     </>
   );

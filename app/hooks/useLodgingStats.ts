@@ -1,4 +1,3 @@
-// app/hooks/useLodgingStats.ts
 
 import { useState, useEffect, useCallback } from 'react';
 import { Lodging } from '../interfaces/lodging';
