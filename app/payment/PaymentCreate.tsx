@@ -1,16 +1,16 @@
 'use client';
 
 import React from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import usePaymentLogic from '../hooks/usePaymentLogic';
 
 export default function PaymentCreate() {
   const search = useSearchParams();
+  const router = useRouter();
   const bookingIdFromQuery = search.get('bookingId') ?? undefined;
 
   const {
     localBooking,
-    setLocalBooking,
     bookingApi,
     loading,
     creating,
@@ -27,13 +27,31 @@ export default function PaymentCreate() {
     handleCreatePayment,
   } = usePaymentLogic(bookingIdFromQuery);
 
+  const handlePaymentClick = async () => {
+    try {
+      const res = await handleCreatePayment();
+      if (res && effective.bookingId) {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('pendingPayment');
+          localStorage.removeItem('pendingBooking');
+        }
+        router.push(`/booking/${effective.bookingId}`);
+      }
+    } catch (err) {
+      console.error('Error procesando el pago:', err);
+    }
+  };
+
   if (!showModal) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center bg-gray-800/20 backdrop-blur-sm p-4">
       <div className="relative w-full max-w-md bg-white rounded-2xl shadow-xl p-6 mt-12 md:mt-0">
         <button
-          onClick={() => setShowModal(false)}
+          onClick={() => {
+            setShowModal(false);
+            router.back();
+          }}
           className="absolute top-3 right-3 text-gray-500 hover:text-gray-700 text-lg"
           aria-label="Cerrar"
         >
@@ -45,9 +63,33 @@ export default function PaymentCreate() {
         </h3>
 
         {loading ? (
-          <p className="text-center text-gray-600">Cargando...</p>
+          <div className="text-center py-8">
+            <div className="w-12 h-12 border-4 border-[#0E2159] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+            <p className="text-gray-600">Cargando información...</p>
+          </div>
         ) : error ? (
-          <p className="text-center text-red-600">{error}</p>
+          <div className="text-center py-8">
+            <p className="text-red-600 mb-4">{error}</p>
+            <button
+              onClick={() => router.back()}
+              className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition"
+            >
+              Volver
+            </button>
+          </div>
+        ) : paymentRes ? (
+          <div className="text-center py-8">
+            <h4 className="text-lg font-semibold mb-2">Pago procesado</h4>
+            <p className="text-sm text-gray-600 mb-4">
+              ID de transacción: <span className="font-mono">{paymentRes.transactionId}</span>
+            </p>
+            <button
+              onClick={() => router.push(`/booking/${effective.bookingId}`)}
+              className="w-full bg-[#0E2159] text-white py-3 rounded-lg hover:bg-[#1B2F7C] transition"
+            >
+              Ver detalle de la reserva
+            </button>
+          </div>
         ) : (
           <>
             <p className="text-sm text-gray-500 mb-1 text-center">{effective.title}</p>
@@ -64,6 +106,7 @@ export default function PaymentCreate() {
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value as any)}
                   className="mt-1 w-full border rounded-lg px-3 py-2"
+                  disabled={creating}
                 >
                   {['CREDIT_CARD','DEBIT_CARD','PSE','CASH','NEQUI','BANCOLOMBIA','GOOGLE_PAY'].map(pm => (
                     <option key={pm} value={pm}>{pm.replace('_',' ')}</option>
@@ -77,6 +120,7 @@ export default function PaymentCreate() {
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value as any)}
                   className="mt-1 w-full border rounded-lg px-3 py-2"
+                  disabled={creating}
                 >
                   <option value="COP">COP</option>
                   <option value="USD">USD</option>
@@ -84,9 +128,9 @@ export default function PaymentCreate() {
               </label>
             </div>
 
-            <div className="mb-4 text-center">
-              <p className="font-semibold">Precio total</p>
-              <p className="text-lg font-bold text-[#0E2159]">
+            <div className="mb-4 text-center bg-blue-50 rounded-lg p-4">
+              <p className="text-sm text-gray-600 mb-1">Precio total</p>
+              <p className="text-2xl font-bold text-[#0E2159]">
                 {amount > 0
                   ? `${currency} $${new Intl.NumberFormat('es-CO').format(amount)}`
                   : '—'}
@@ -95,38 +139,26 @@ export default function PaymentCreate() {
 
             <div className="flex gap-2">
               <button
-                onClick={handleCreatePayment}
+                onClick={handlePaymentClick}
                 disabled={creating || amount <= 0}
-                className={`flex-1 bg-[#0E2159] text-white py-2 rounded-lg hover:bg-[#1B2F7C] transition ${
+                className={`flex-1 bg-[#0E2159] text-white py-3 rounded-lg hover:bg-[#1B2F7C] transition font-semibold ${
                   creating || amount <= 0 ? 'opacity-60 cursor-not-allowed' : ''
                 }`}
               >
-                {creating ? 'Procesando...' : 'Ir a pagar'}
+                {creating ? 'Procesando...' : 'Pagar ahora'}
               </button>
 
               <button
-                onClick={() => setShowModal(false)}
-                className="px-4 py-2 border rounded-lg"
+                onClick={() => {
+                  setShowModal(false);
+                  router.back();
+                }}
+                className="px-4 py-2 border rounded-lg hover:bg-gray-50 transition"
+                disabled={creating}
               >
                 Cancelar
               </button>
             </div>
-
-            {paymentRes && (
-              <div className="mt-4 text-center">
-                <p className="text-sm text-gray-600">Orden: {paymentRes.orderId}</p>
-                {paymentRes.payuPaymentUrl && (
-                  <a
-                    href={paymentRes.payuPaymentUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-sm text-pink-600 underline"
-                  >
-                    Completar pago en PayU
-                  </a>
-                )}
-              </div>
-            )}
           </>
         )}
       </div>

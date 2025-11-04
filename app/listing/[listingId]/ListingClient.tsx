@@ -1,3 +1,4 @@
+// app/listing/[listingId]/ListingClient.tsx
 'use client';
 
 import React from 'react';
@@ -9,25 +10,26 @@ import NoLodgingFound from '@/app/components/NoLodgingFound';
 import BookingCreate from '@/app/booking/BookingCreate';
 import PaymentCreate from '@/app/payment/PaymentCreate';
 import useListingLogic from '@/app/hooks/useListingLogic';
-import { useParams } from 'next/navigation';
+
+import { useParams, useRouter } from 'next/navigation';
+import { useUserBooking } from '@/app/hooks/useUserBookings';
 
 const ListingClient = () => {
   const { listingId } = useParams();
+  const router = useRouter();
+  
   const {
     lodging,
     loading,
     error,
-
     showBooking,
     setShowBooking,
     showPayment,
     pendingBookingId,
-
     handleReserveNow,
     handleReturnHomeRestore,
     handleGoBack,
     handleBookingCreated,
-
     formattedPrice,
     city,
     address,
@@ -40,13 +42,46 @@ const ListingClient = () => {
     mainImage,
   } = useListingLogic(listingId as string | undefined);
 
-  if (loading) return <LoadingSpinner />;
+
+  const { userBooking, loading: bookingLoading, hasBooking } = useUserBooking(
+    listingId as string
+  );
+
+  if (loading || bookingLoading) return <LoadingSpinner />;
   if (error) return <ErrorMessage message="Ocurrió un error al cargar los datos. Intenta nuevamente." />;
   if (!lodging) return <NoLodgingFound />;
 
+
+  const handleMainButtonClick = () => {
+    if (hasBooking && userBooking) {
+
+      router.push(`/booking/${userBooking.id}`);
+    } else {
+
+      handleReserveNow();
+    }
+  };
+
+  const getButtonConfig = () => {
+    if (hasBooking && userBooking) {
+      return {
+        text: userBooking.status === 'pending' 
+          ? '💳 Completar pago de mi reserva' 
+          : '📋 Ver mi reserva',
+        className: 'bg-blue-600 hover:bg-blue-700',
+      };
+    }
+    return {
+      text: 'Reservar ahora',
+      className: 'bg-pink-600 hover:bg-fuchsia-300',
+    };
+  };
+
+  const buttonConfig = getButtonConfig();
+
   return (
     <div>
-      <Navbar onSearch={() => { }} />
+      <Navbar onSearch={() => {}} />
       <div className="container mx-auto px-4 py-8 relative">
         <div className="mb-6 flex items-center gap-3">
           <button
@@ -63,6 +98,28 @@ const ListingClient = () => {
             Volver al inicio (mantener mi vista)
           </button>
         </div>
+
+        {/* Alert si ya tiene reserva */}
+        {hasBooking && userBooking && (
+          <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <svg className="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <h4 className="font-semibold text-blue-800 mb-1">Ya tienes una reserva para este alojamiento</h4>
+                <p className="text-sm text-blue-700">
+                  Estado: <span className="font-semibold">
+                    {userBooking.status === 'pending' ? '⏳ Pendiente de pago' : '✓ Confirmada'}
+                  </span>
+                </p>
+                <p className="text-sm text-blue-700">
+                  Fechas: {new Date(userBooking.checkIn).toLocaleDateString()} - {new Date(userBooking.checkOut).toLocaleDateString()}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-col md:flex-row md:space-x-8 mb-8">
           <div className="w-full md:w-1/2 mb-6 md:mb-0">
@@ -103,15 +160,15 @@ const ListingClient = () => {
 
             <div className="mt-8 flex justify-center">
               <button
-                onClick={handleReserveNow}
-                className="bg-pink-600 text-white px-16 py-5 rounded-2xl text-xl font-bold shadow-lg hover:bg-fuchsia-300 hover:scale-105 transition-transform duration-200 w-full max-w-md"
+                onClick={handleMainButtonClick}
+                className={`${buttonConfig.className} text-white px-16 py-5 rounded-2xl text-xl font-bold shadow-lg hover:scale-105 transition-transform duration-200 w-full max-w-md`}
               >
-                Reservar ahora
+                {buttonConfig.text}
               </button>
             </div>
 
-            {/* Modal de Booking */}
-            {showBooking && (
+            {/* Modal de Booking - Solo si NO tiene reserva */}
+            {showBooking && !hasBooking && (
               <BookingCreate
                 listingId={Array.isArray(listingId) ? listingId[0] : listingId}
                 pricePerNight={Number(lodging.pricePerNight)}
@@ -121,7 +178,7 @@ const ListingClient = () => {
               />
             )}
 
-            {/* Modal de Payment (abre encima del listing, mismo estilo) */}
+            {/* Modal de Payment */}
             {showPayment && pendingBookingId && (
               <PaymentCreate />
             )}

@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import 'react-day-picker/dist/style.css';
 import { useBookingLogic } from './../hooks/useBookingLogic';
+import { useOccupiedDates } from '@/app/hooks/useOccupiedDates';
 
 type Props = {
   listingId?: string | string[];
@@ -40,12 +41,35 @@ const BookingCreate: React.FC<Props> = ({
     checkInStr,
     checkOutStr,
     disabledRanges,
-
-    // setters / handlers
     setGuests,
     setRange,
     handleGoToPayment,
   } = useBookingLogic({ listingId, propPrice, increaseFromDay, onClose, onBooked });
+
+  const normalizedListingId =
+    Array.isArray(listingId) ? listingId[0] : listingId ?? null;
+
+  const { isDateRangeAvailable } = useOccupiedDates(normalizedListingId);
+
+  const checkInDate = range?.from || null;
+  const checkOutDate = range?.to || null;
+
+  const checkInStr1 = range?.from ? format(range.from, 'yyyy-MM-dd') : null;
+  const checkOutStr1 = range?.to ? format(range.to, 'yyyy-MM-dd') : null;
+
+  const isAvailable = checkInStr1 && checkOutStr1
+    ? isDateRangeAvailable(checkInStr1, checkOutStr1)
+    : true;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!isAvailable) {
+      alert('Las fechas seleccionadas no están disponibles. Por favor elige otras fechas.');
+      return;
+    }
+    handleGoToPayment(router as any);
+  };
 
   return (
     <div
@@ -72,11 +96,19 @@ const BookingCreate: React.FC<Props> = ({
           onSelect={setRange}
           locale={es}
           disabled={[
-            { before: new Date() }, // fechas pasadas
-            ...disabledRanges,       // fechas ocupadas
+            { before: new Date() },
+            ...disabledRanges,
           ]}
         />
 
+        {/* Mensaje preventivo */}
+        {!isAvailable && (
+          <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-sm text-red-700">
+              ⚠️ Estas fechas no están disponibles. Ya existe una reserva confirmada en este período.
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="mb-3 text-sm text-gray-700">
@@ -119,10 +151,9 @@ const BookingCreate: React.FC<Props> = ({
       {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
 
       <button
-        // <-- casteamos router a any para evitar el error de tipos
-        onClick={() => handleGoToPayment(router as any)}
-        disabled={navigating || loadingPrice}
-        className={`w-full bg-pink-600 text-white py-2 rounded-lg hover:bg-pink-700 transition ${navigating || loadingPrice ? 'opacity-60 cursor-not-allowed' : ''}`}
+        onClick={handleSubmit}
+        disabled={navigating || loadingPrice || !isAvailable}
+        className={`w-full bg-pink-600 text-white py-2 rounded-lg hover:bg-pink-700 transition ${navigating || loadingPrice || !isAvailable ? 'opacity-60 cursor-not-allowed' : ''}`}
       >
         {navigating ? 'Procesando...' : loadingPrice ? 'Cargando precio...' : 'Ir a pagar'}
       </button>

@@ -117,7 +117,7 @@ export function useHostAuthModal(open: boolean, onClose: () => void, setIsAuthen
 
   const redirectAfterAuth = () => {
     const redirect = localStorage.getItem('postLoginRedirect');
-    if (redirect) { localStorage.removeItem('postLoginRedirect'); router.push(redirect); }
+    if (redirect) { localStorage.removeItem('postLoginRedirect'); router.push('/'); }
     else router.push('/');
   };
 

@@ -28,7 +28,6 @@ const ListingCard: React.FC<ListingCardProps> = ({
 
   const getCurrentUserInfo = () => {
     try {
-      // intentamos userId directo
       let userId = localStorage.getItem('userId');
       if (!userId) {
         const ud = localStorage.getItem('userData');
@@ -42,7 +41,6 @@ const ListingCard: React.FC<ListingCardProps> = ({
         }
       }
 
-      // roles: manejar string/json
       let rolesRaw: any[] = [];
       try {
         const raw = localStorage.getItem('roles');
@@ -62,7 +60,6 @@ const ListingCard: React.FC<ListingCardProps> = ({
     }
   };
 
-  // normaliza ownerId recibido (puede ser string, objeto, etc.)
   const normalizeOwnerId = (o?: any): string | null => {
     if (!o && o !== 0) return null;
     if (typeof o === 'string' && o.trim()) return o.trim();
@@ -81,18 +78,15 @@ const ListingCard: React.FC<ListingCardProps> = ({
 
     const ownerIdNormalized = normalizeOwnerId(ownerId);
 
-    // logs para depuración
     console.log('ListingCard click -> current userId:', userId, 'roles:', roles);
     console.log('ListingCard click -> ownerId (raw):', ownerId, 'ownerIdNormalized:', ownerIdNormalized, 'isHost:', isHost);
 
-    // Si current user es host y ownerId coincide con userId => ir a /listing/:id/edit
     if (isHost && userId && ownerIdNormalized && String(ownerIdNormalized) === String(userId)) {
       console.log('Navigating to edit mode for listing:', id);
-      router.push(`/listing/${id}/edit`);
+      router.push(`/listing/${id}/dashboard`);
       return;
     }
 
-    // sino abrir vista pública
     router.push(`/listing/${id}`);
 
     if (typeof onAction === 'function') onAction();

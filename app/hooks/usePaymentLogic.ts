@@ -51,7 +51,7 @@ const PAYMENT_METHODS: PaymentMethod[] = [
 export default function usePaymentLogic(bookingIdFromQuery?: string, apiBaseIn?: string) {
   const API_BASE =
     (typeof process !== 'undefined' && (apiBaseIn ?? (process.env.NEXT_PUBLIC_API_BASE_URL || '')).trim())
-      || 'http://localhost:3000';
+    || 'http://localhost:3000';
 
   const [localBooking, setLocalBooking] = useState<BookingLocal | null>(null);
   const [bookingApi, setBookingApi] = useState<BookingApi | null>(null);
@@ -85,15 +85,15 @@ export default function usePaymentLogic(bookingIdFromQuery?: string, apiBaseIn?:
       typeof localBooking?.pricePerNight === 'number'
         ? localBooking.pricePerNight
         : (typeof bookingApi?.lodging?.pricePerNight === 'number'
-            ? bookingApi!.lodging.pricePerNight!
-            : 0);
+          ? bookingApi!.lodging.pricePerNight!
+          : 0);
 
     const nights = localBooking?.nightsWithIncrease && localBooking.nightsWithIncrease > 0
       ? localBooking.nightsWithIncrease
       : diffDays(
-          localBooking?.checkIn ?? bookingApi?.checkIn,
-          localBooking?.checkOut ?? bookingApi?.checkOut
-        );
+        localBooking?.checkIn ?? bookingApi?.checkIn,
+        localBooking?.checkOut ?? bookingApi?.checkOut
+      );
 
     const a = Number(pricePerNight) * Number(nights || 0);
     return isFinite(a) ? a : 0;
@@ -161,12 +161,12 @@ export default function usePaymentLogic(bookingIdFromQuery?: string, apiBaseIn?:
     };
   }, [localBooking, bookingApi, bookingIdFromQuery]);
 
-  const handleCreatePayment = async () => {
+  const handleCreatePayment = async (): Promise<PayResponse | null> => {
     if (!effective.bookingId) {
       setError('Falta bookingId para crear la orden.');
-      return;
+      return null;
     }
-    if (creating) return;
+    if (creating) return null;
 
     setCreating(true);
     setError(null);
@@ -178,19 +178,11 @@ export default function usePaymentLogic(bookingIdFromQuery?: string, apiBaseIn?:
         throw new Error('El monto (amount) calculado debe ser mayor que 0.');
       }
 
-      const body = {
-        bookingId: String(effective.bookingId),
-        amount,
-        currency,
-        paymentMethod,
-      };
+      const body = { bookingId: String(effective.bookingId), amount, currency, paymentMethod };
 
       const res = await fetch(`${API_BASE}/payments`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify(body),
       });
 
@@ -199,7 +191,7 @@ export default function usePaymentLogic(bookingIdFromQuery?: string, apiBaseIn?:
         try {
           const err = await res.json();
           if (err?.message) message = Array.isArray(err.message) ? err.message.join(', ') : err.message;
-        } catch {}
+        } catch { }
         throw new Error(message);
       }
 
@@ -210,13 +202,17 @@ export default function usePaymentLogic(bookingIdFromQuery?: string, apiBaseIn?:
         const w = window.open('', '_blank', 'noopener,noreferrer');
         if (w) w.location.href = data.payuPaymentUrl;
       }
+
+      return data; // 🔹 Devuelve el PayResponse
     } catch (e: any) {
       console.error('Error crear payment:', e);
       setError(e?.message || 'Error al crear pago');
+      return null;
     } finally {
       setCreating(false);
     }
   };
+
 
   useEffect(() => {
     if (typeof window !== 'undefined') {

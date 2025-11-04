@@ -139,3 +139,4 @@ export default function useListingLogic(listingId?: string | string[]) {
     mainImage,
   };
 }
+    
