@@ -67,6 +67,7 @@ export interface Booking {
     location?: {
       city?: string;
     };
+    pricePerNight?: number;
   };
   user?: {
     id: string;

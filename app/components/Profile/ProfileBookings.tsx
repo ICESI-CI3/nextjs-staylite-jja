@@ -110,6 +110,8 @@ export const ProfileBookings = ({ bookings, loading }: ProfileBookingsProps) => 
           const nights = calculateNights(booking.checkIn, booking.checkOut);
           const statusBadge = getStatusBadge(booking.status);
 
+          const pricePerNight = booking.lodging?.pricePerNight || 0;
+          const totalPrice = nights * pricePerNight;
           return (
             <div
               key={booking.id}
@@ -164,7 +166,7 @@ export const ProfileBookings = ({ bookings, loading }: ProfileBookingsProps) => 
 
                     <div className="text-right">
                       <p className="text-2xl font-bold text-[#155dfc]">
-                        ${booking.totalPrice?.toLocaleString() || 'N/A'}
+                        ${totalPrice?.toLocaleString() || 'N/A'}
                       </p>
                       <p className="text-xs text-gray-500">
                         {nights} {nights === 1 ? 'noche' : 'noches'}
